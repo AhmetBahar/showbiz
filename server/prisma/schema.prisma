@@ -1,0 +1,123 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("agent") // admin, agent, usher
+  createdAt DateTime @default(now())
+
+  reservations Ticket[] @relation("ReservedBy")
+  sales        Ticket[] @relation("SoldBy")
+}
+
+model Venue {
+  id          Int      @id @default(autoincrement())
+  name        String
+  address     String
+  description String?
+  createdAt   DateTime @default(now())
+
+  floors Floor[]
+  shows  Show[]
+}
+
+model Floor {
+  id      Int    @id @default(autoincrement())
+  venueId Int
+  name    String
+  level   Int
+
+  venue    Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sections Section[]
+}
+
+model Section {
+  id      Int    @id @default(autoincrement())
+  floorId Int
+  name    String
+  type    String // orchestra, balcony, box
+
+  floor Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  seats Seat[]
+}
+
+model Seat {
+  id        Int     @id @default(autoincrement())
+  sectionId Int
+  row       String
+  number    Int
+  isActive  Boolean @default(true)
+
+  section Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@unique([sectionId, row, number])
+}
+
+model Show {
+  id          Int      @id @default(autoincrement())
+  venueId     Int
+  name        String
+  description String?
+  date        DateTime
+  status      String   @default("upcoming") // upcoming, ongoing, completed, cancelled
+  createdAt   DateTime @default(now())
+
+  venue      Venue            @relation(fields: [venueId], references: [id])
+  categories TicketCategory[]
+  tickets    Ticket[]
+}
+
+model TicketCategory {
+  id          Int     @id @default(autoincrement())
+  showId      Int
+  name        String
+  price       Float
+  color       String?
+  description String?
+
+  show    Show     @relation(fields: [showId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+}
+
+model Ticket {
+  id         Int    @id @default(autoincrement())
+  showId     Int
+  seatId     Int
+  categoryId Int
+  status     String @default("available") // available, reserved, sold, cancelled
+
+  holderName  String?
+  holderPhone String?
+  holderEmail String?
+
+  barcode String? @unique
+
+  reservedById Int?
+  soldById     Int?
+
+  reservedAt  DateTime?
+  soldAt      DateTime?
+  checkedInAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  show       Show           @relation(fields: [showId], references: [id])
+  seat       Seat           @relation(fields: [seatId], references: [id])
+  category   TicketCategory @relation(fields: [categoryId], references: [id])
+  reservedBy User?          @relation("ReservedBy", fields: [reservedById], references: [id])
+  soldBy     User?          @relation("SoldBy", fields: [soldById], references: [id])
+
+  @@unique([showId, seatId])
+}
