@@ -131,59 +131,37 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
 
-    // Step 1: Get all floor IDs
-    const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
-    const floorIds = floors.map((f: any) => f.id);
+    // Use raw SQL for reliable deletion on Turso/libsql
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM Ticket WHERE showId IN (SELECT id FROM Show WHERE venueId = ?)
+       OR seatId IN (
+         SELECT s.id FROM Seat s
+         INNER JOIN Section sec ON s.sectionId = sec.id
+         INNER JOIN Floor f ON sec.floorId = f.id
+         WHERE f.venueId = ?
+       )`,
+      venueId, venueId
+    );
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM TicketCategory WHERE showId IN (SELECT id FROM Show WHERE venueId = ?)',
+      venueId
+    );
+    await prisma.$executeRawUnsafe('DELETE FROM Show WHERE venueId = ?', venueId);
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM Seat WHERE sectionId IN (
+         SELECT sec.id FROM Section sec
+         INNER JOIN Floor f ON sec.floorId = f.id
+         WHERE f.venueId = ?
+       )`,
+      venueId
+    );
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM Section WHERE floorId IN (SELECT id FROM Floor WHERE venueId = ?)',
+      venueId
+    );
+    await prisma.$executeRawUnsafe('DELETE FROM Floor WHERE venueId = ?', venueId);
+    await prisma.$executeRawUnsafe('DELETE FROM Venue WHERE id = ?', venueId);
 
-    // Step 2: Get all section IDs
-    const sections = floorIds.length > 0
-      ? await prisma.section.findMany({ where: { floorId: { in: floorIds } }, select: { id: true } })
-      : [];
-    const sectionIds = sections.map((s: any) => s.id);
-
-    // Step 3: Get all seat IDs
-    const seats = sectionIds.length > 0
-      ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
-      : [];
-    const seatIds = seats.map((s: any) => s.id);
-
-    // Step 4: Get all show IDs
-    const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
-    const showIds = shows.map((s: any) => s.id);
-
-    // Step 5: Delete tickets (by showId and seatId)
-    if (showIds.length > 0) {
-      await prisma.ticket.deleteMany({ where: { showId: { in: showIds } } });
-    }
-    if (seatIds.length > 0) {
-      await prisma.ticket.deleteMany({ where: { seatId: { in: seatIds } } });
-    }
-
-    // Step 6: Delete categories
-    if (showIds.length > 0) {
-      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
-    }
-
-    // Step 7: Delete shows
-    if (showIds.length > 0) {
-      await prisma.show.deleteMany({ where: { id: { in: showIds } } });
-    }
-
-    // Step 8: Delete seats
-    if (sectionIds.length > 0) {
-      await prisma.seat.deleteMany({ where: { sectionId: { in: sectionIds } } });
-    }
-
-    // Step 9: Delete sections
-    if (floorIds.length > 0) {
-      await prisma.section.deleteMany({ where: { floorId: { in: floorIds } } });
-    }
-
-    // Step 10: Delete floors
-    await prisma.floor.deleteMany({ where: { venueId } });
-
-    // Step 11: Delete venue
-    await prisma.venue.delete({ where: { id: venueId } });
     return res.json({ message: 'Salon silindi' });
   } catch (error) {
     console.error(error);
