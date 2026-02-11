@@ -129,9 +129,22 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    await prisma.venue.delete({ where: { id: parseInt(req.params.id) } });
+    const venueId = parseInt(req.params.id);
+
+    // Delete related shows, tickets, and categories first
+    const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
+    const showIds = shows.map((s) => s.id);
+
+    if (showIds.length > 0) {
+      await prisma.ticket.deleteMany({ where: { showId: { in: showIds } } });
+      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
+      await prisma.show.deleteMany({ where: { venueId } });
+    }
+
+    await prisma.venue.delete({ where: { id: venueId } });
     return res.json({ message: 'Salon silindi' });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
