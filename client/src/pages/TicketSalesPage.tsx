@@ -10,7 +10,6 @@ import {
   Drawer,
   Form,
   Input,
-  Select,
   message,
   Badge,
   Tooltip,
@@ -22,6 +21,7 @@ import {
 import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined } from '@ant-design/icons';
 import { showApi, ticketApi } from '../services/api';
 import { Show, Ticket } from '../types';
+import TheaterSeatMap from '../components/TheaterSeatMap';
 
 export default function TicketSalesPage() {
   const { id } = useParams();
@@ -53,8 +53,6 @@ export default function TicketSalesPage() {
   }, [id]);
 
   const handleSeatClick = (ticket: Ticket) => {
-    if (ticket.status === 'cancelled') return;
-
     const isSelected = selectedTickets.some((t) => t.id === ticket.id);
     if (isSelected) {
       setSelectedTickets(selectedTickets.filter((t) => t.id !== ticket.id));
@@ -65,7 +63,6 @@ export default function TicketSalesPage() {
 
   const openAction = (type: 'reserve' | 'sell') => {
     setActionType(type);
-    // Seçili biletlerden bilgi varsa doldur
     const first = selectedTickets[0];
     if (first) {
       form.setFieldsValue({
@@ -145,17 +142,22 @@ export default function TicketSalesPage() {
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!show) return <Typography.Text>Gösteri bulunamadı</Typography.Text>;
 
-  // Biletleri kat > bölüm > sıra yapısına dönüştür
-  const groupedByFloor: Record<string, Record<string, Record<string, Ticket[]>>> = {};
+  // Build a ticket lookup by seatId for TheaterSeatMap integration
+  const ticketBySeatId = new Map<number, Ticket>();
+  tickets.forEach((t) => ticketBySeatId.set(t.seatId, t));
+
+  // Group tickets by floor, then build sections with type info
+  const floorMap: Record<string, { floorName: string; sections: Record<string, { sectionType: string; tickets: Ticket[] }> }> = {};
   tickets.forEach((ticket) => {
     const floorName = ticket.seat.section.floor.name;
     const sectionName = ticket.seat.section.name;
-    const row = ticket.seat.row;
+    const sectionType = ticket.seat.section.type || 'orchestra';
 
-    if (!groupedByFloor[floorName]) groupedByFloor[floorName] = {};
-    if (!groupedByFloor[floorName][sectionName]) groupedByFloor[floorName][sectionName] = {};
-    if (!groupedByFloor[floorName][sectionName][row]) groupedByFloor[floorName][sectionName][row] = [];
-    groupedByFloor[floorName][sectionName][row].push(ticket);
+    if (!floorMap[floorName]) floorMap[floorName] = { floorName, sections: {} };
+    if (!floorMap[floorName].sections[sectionName]) {
+      floorMap[floorName].sections[sectionName] = { sectionType, tickets: [] };
+    }
+    floorMap[floorName].sections[sectionName].tickets.push(ticket);
   });
 
   const stats = {
@@ -167,6 +169,8 @@ export default function TicketSalesPage() {
 
   const canReserve = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available');
   const canSell = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available' || t.status === 'reserved');
+
+  const selectedSeatIds = new Set(selectedTickets.map((t) => t.seatId));
 
   return (
     <div>
@@ -217,51 +221,50 @@ export default function TicketSalesPage() {
       </Card>
 
       {/* Koltuk Haritası */}
-      {Object.entries(groupedByFloor).map(([floorName, sections]) => (
-        <Card key={floorName} title={floorName} style={{ marginBottom: 16 }}>
-          {Object.entries(sections).map(([sectionName, rows]) => (
-            <div key={sectionName} style={{ marginBottom: 24 }}>
-              <Typography.Text strong style={{ fontSize: 16 }}>{sectionName}</Typography.Text>
-              <div className="seat-map">
-                <div className="stage">SAHNE</div>
-                {Object.entries(rows).map(([row, rowTickets]) => (
-                  <div key={row} className="seat-row">
-                    <span className="seat-row-label">{row}</span>
-                    {rowTickets
-                      .sort((a, b) => a.seat.number - b.seat.number)
-                      .map((ticket) => {
-                        const isSelected = selectedTickets.some((t) => t.id === ticket.id);
-                        return (
-                          <Tooltip
-                            key={ticket.id}
-                            title={
-                              <div>
-                                <div>{`${ticket.seat.row}-${ticket.seat.number}`}</div>
-                                <div>{ticket.category.name} - {ticket.category.price}TL</div>
-                                {ticket.holderName && <div>{ticket.holderName}</div>}
-                                <div>{ticket.status === 'available' ? 'Boş' : ticket.status === 'reserved' ? 'Rezerve' : ticket.status === 'sold' ? 'Satılmış' : 'İptal'}</div>
-                              </div>
-                            }
-                          >
-                            <div
-                              className={`seat ${ticket.status} ${isSelected ? 'selected' : ''}`}
-                              onClick={() => handleSeatClick(ticket)}
-                              style={ticket.category.color ? {
-                                backgroundColor: ticket.status === 'available' ? ticket.category.color : undefined,
-                              } : undefined}
-                            >
-                              {ticket.seat.number}
-                            </div>
-                          </Tooltip>
-                        );
-                      })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </Card>
-      ))}
+      {Object.entries(floorMap).map(([floorName, floorData]) => {
+        const theaterSections = Object.entries(floorData.sections).map(([sectionName, sectionData]) => ({
+          name: sectionName,
+          type: sectionData.sectionType,
+          seats: sectionData.tickets.map((ticket) => ({
+            id: ticket.seatId,
+            row: ticket.seat.row,
+            number: ticket.seat.number,
+            status: ticket.status,
+            categoryColor: ticket.category.color || undefined,
+          })),
+        }));
+
+        return (
+          <Card key={floorName} title={floorName} style={{ marginBottom: 16 }}>
+            <TheaterSeatMap
+              sections={theaterSections}
+              selectedSeatIds={selectedSeatIds}
+              onSeatClick={(seat) => {
+                const ticket = ticketBySeatId.get(seat.id!);
+                if (ticket) handleSeatClick(ticket);
+              }}
+              renderSeat={(seat, defaultEl) => {
+                const ticket = ticketBySeatId.get(seat.id!);
+                if (!ticket) return defaultEl;
+                return (
+                  <Tooltip
+                    title={
+                      <div>
+                        <div>{`${ticket.seat.row}-${ticket.seat.number}`}</div>
+                        <div>{ticket.category.name} - {ticket.category.price}TL</div>
+                        {ticket.holderName && <div>{ticket.holderName}</div>}
+                        <div>{ticket.status === 'available' ? 'Boş' : ticket.status === 'reserved' ? 'Rezerve' : ticket.status === 'sold' ? 'Satılmış' : 'İptal'}</div>
+                      </div>
+                    }
+                  >
+                    {defaultEl}
+                  </Tooltip>
+                );
+              }}
+            />
+          </Card>
+        );
+      })}
 
       {/* Seçili bilet bilgileri */}
       {selectedTickets.length === 1 && selectedTickets[0].holderName && (

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Typography, Spin, Descriptions, Tag, Divider, Button } from 'antd';
+import { Card, Typography, Spin, Descriptions, Tag, Button } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { venueApi } from '../services/api';
 import { Venue } from '../types';
+import TheaterSeatMap from '../components/TheaterSeatMap';
 
 export default function VenueDetailPage() {
   const { id } = useParams();
@@ -20,12 +21,6 @@ export default function VenueDetailPage() {
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!venue) return <Typography.Text>Salon bulunamadı</Typography.Text>;
-
-  const sectionTypeLabels: Record<string, string> = {
-    orchestra: 'Orkestra',
-    balcony: 'Balkon',
-    box: 'Loca',
-  };
 
   const totalSeats = venue.floors.reduce(
     (sum, f) => sum + f.sections.reduce((s, sec) => s + sec.seats.length, 0),
@@ -55,39 +50,18 @@ export default function VenueDetailPage() {
 
       {venue.floors.map((floor) => (
         <Card key={floor.id} title={floor.name} style={{ marginBottom: 16 }}>
-          {floor.sections.map((section) => (
-            <div key={section.id} style={{ marginBottom: 16 }}>
-              <Typography.Text strong>
-                {section.name}{' '}
-                <Tag>{sectionTypeLabels[section.type] || section.type}</Tag>
-                <Tag color="green">{section.seats.length} koltuk</Tag>
-              </Typography.Text>
-              <div className="seat-map" style={{ marginTop: 8 }}>
-                <div className="stage">SAHNE</div>
-                {Object.entries(
-                  section.seats.reduce((acc, seat) => {
-                    if (!acc[seat.row]) acc[seat.row] = [];
-                    acc[seat.row].push(seat);
-                    return acc;
-                  }, {} as Record<string, typeof section.seats>)
-                ).map(([row, seats]) => (
-                  <div key={row} className="seat-row">
-                    <span className="seat-row-label">{row}</span>
-                    {seats
-                      .sort((a, b) => a.number - b.number)
-                      .map((seat) => (
-                        <div
-                          key={seat.id}
-                          className={`seat ${seat.isActive ? 'available' : 'inactive'}`}
-                        >
-                          {seat.number}
-                        </div>
-                      ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <TheaterSeatMap
+            sections={floor.sections.map((section) => ({
+              name: section.name,
+              type: section.type,
+              seats: section.seats.map((seat) => ({
+                id: seat.id,
+                row: seat.row,
+                number: seat.number,
+                status: seat.isActive ? 'available' : 'inactive',
+              })),
+            }))}
+          />
         </Card>
       ))}
     </div>

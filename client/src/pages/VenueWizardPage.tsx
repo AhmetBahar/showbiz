@@ -10,7 +10,6 @@ import {
   Select,
   Typography,
   message,
-  Table,
   Divider,
   Tag,
   Row,
@@ -19,6 +18,14 @@ import {
 import { PlusOutlined, DeleteOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { venueApi } from '../services/api';
+import TheaterSeatMap from '../components/TheaterSeatMap';
+
+interface RowDef {
+  row: string;
+  start: number;
+  end: number;
+  step: number;
+}
 
 interface FloorDef {
   name: string;
@@ -29,8 +36,16 @@ interface FloorDef {
 interface SectionDef {
   name: string;
   type: string;
-  rows: { row: string; count: number }[];
+  rows: RowDef[];
 }
+
+const generateSeatNumbers = (row: RowDef): number[] => {
+  const seats: number[] = [];
+  for (let n = row.start; n <= row.end; n += row.step) {
+    seats.push(n);
+  }
+  return seats;
+};
 
 export default function VenueWizardPage() {
   const [current, setCurrent] = useState(0);
@@ -71,7 +86,7 @@ export default function VenueWizardPage() {
     updated[floorIndex].sections.push({
       name: '',
       type: 'orchestra',
-      rows: [{ row: 'A', count: 10 }],
+      rows: [{ row: 'A', start: 1, end: 10, step: 1 }],
     });
     setFloors(updated);
   };
@@ -91,8 +106,9 @@ export default function VenueWizardPage() {
   const addRow = (floorIndex: number, sectionIndex: number) => {
     const updated = [...floors];
     const rows = updated[floorIndex].sections[sectionIndex].rows;
-    const nextRow = String.fromCharCode(65 + rows.length); // A, B, C...
-    rows.push({ row: nextRow, count: 10 });
+    const lastRow = rows[rows.length - 1];
+    const nextRowChar = lastRow ? String.fromCharCode(lastRow.row.charCodeAt(0) + 1) : 'A';
+    rows.push({ row: nextRowChar, start: lastRow?.start || 1, end: lastRow?.end || 10, step: lastRow?.step || 1 });
     setFloors(updated);
   };
 
@@ -110,10 +126,14 @@ export default function VenueWizardPage() {
     setFloors(updated);
   };
 
+  const getRowSeatCount = (row: RowDef): number => {
+    return generateSeatNumbers(row).length;
+  };
+
   const getTotalSeats = () => {
     return floors.reduce(
       (sum, f) =>
-        sum + f.sections.reduce((s, sec) => s + sec.rows.reduce((r, row) => r + row.count, 0), 0),
+        sum + f.sections.reduce((s, sec) => s + sec.rows.reduce((r, row) => r + getRowSeatCount(row), 0), 0),
       0
     );
   };
@@ -130,9 +150,9 @@ export default function VenueWizardPage() {
             name: s.name,
             type: s.type,
             seats: s.rows.flatMap((r) =>
-              Array.from({ length: r.count }, (_, i) => ({
+              generateSeatNumbers(r).map((num) => ({
                 row: r.row,
-                number: i + 1,
+                number: num,
               }))
             ),
           })),
@@ -153,7 +173,23 @@ export default function VenueWizardPage() {
     { value: 'orchestra', label: 'Orkestra' },
     { value: 'balcony', label: 'Balkon' },
     { value: 'box', label: 'Loca' },
+    { value: 'left_wing', label: 'Sol Kanat' },
+    { value: 'center', label: 'Orta' },
+    { value: 'right_wing', label: 'Sağ Kanat' },
   ];
+
+  const buildPreviewSections = (floor: FloorDef) => {
+    return floor.sections.map((section) => ({
+      name: section.name,
+      type: section.type,
+      seats: section.rows.flatMap((r) =>
+        generateSeatNumbers(r).map((num) => ({
+          row: r.row,
+          number: num,
+        }))
+      ),
+    }));
+  };
 
   return (
     <div>
@@ -284,35 +320,61 @@ export default function VenueWizardPage() {
                     </Row>
 
                     <Typography.Text strong>Sıralar:</Typography.Text>
-                    {section.rows.map((row, ri) => (
-                      <Row key={ri} gutter={8} align="middle" style={{ marginTop: 8 }}>
-                        <Col span={6}>
-                          <Input
-                            addonBefore="Sıra"
-                            value={row.row}
-                            onChange={(e) => updateRow(fi, si, ri, 'row', e.target.value)}
-                          />
-                        </Col>
-                        <Col span={6}>
-                          <InputNumber
-                            addonBefore="Koltuk"
-                            value={row.count}
-                            onChange={(v) => updateRow(fi, si, ri, 'count', v || 1)}
-                            min={1}
-                            max={100}
-                            style={{ width: '100%' }}
-                          />
-                        </Col>
-                        <Col>
-                          <Button
-                            danger
-                            size="small"
-                            icon={<MinusCircleOutlined />}
-                            onClick={() => removeRow(fi, si, ri)}
-                          />
-                        </Col>
-                      </Row>
-                    ))}
+                    {section.rows.map((row, ri) => {
+                      const seatNums = generateSeatNumbers(row);
+                      return (
+                        <div key={ri} style={{ marginTop: 8 }}>
+                          <Row gutter={8} align="middle">
+                            <Col span={4}>
+                              <Input
+                                addonBefore="Sıra"
+                                value={row.row}
+                                onChange={(e) => updateRow(fi, si, ri, 'row', e.target.value)}
+                              />
+                            </Col>
+                            <Col span={4}>
+                              <InputNumber
+                                addonBefore="Başlangıç"
+                                value={row.start}
+                                onChange={(v) => updateRow(fi, si, ri, 'start', v || 1)}
+                                min={1}
+                                style={{ width: '100%' }}
+                              />
+                            </Col>
+                            <Col span={4}>
+                              <InputNumber
+                                addonBefore="Bitiş"
+                                value={row.end}
+                                onChange={(v) => updateRow(fi, si, ri, 'end', v || 1)}
+                                min={row.start}
+                                style={{ width: '100%' }}
+                              />
+                            </Col>
+                            <Col span={4}>
+                              <InputNumber
+                                addonBefore="Artış"
+                                value={row.step}
+                                onChange={(v) => updateRow(fi, si, ri, 'step', v || 1)}
+                                min={1}
+                                max={10}
+                                style={{ width: '100%' }}
+                              />
+                            </Col>
+                            <Col>
+                              <Button
+                                danger
+                                size="small"
+                                icon={<MinusCircleOutlined />}
+                                onClick={() => removeRow(fi, si, ri)}
+                              />
+                            </Col>
+                          </Row>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>
+                            {seatNums.length} koltuk: {seatNums.length <= 12 ? seatNums.join(', ') : `${seatNums.slice(0, 6).join(', ')} ... ${seatNums.slice(-3).join(', ')}`}
+                          </Typography.Text>
+                        </div>
+                      );
+                    })}
                     <Button
                       type="dashed"
                       size="small"
@@ -354,25 +416,9 @@ export default function VenueWizardPage() {
 
           {floors.map((floor, fi) => (
             <Card key={fi} title={floor.name} size="small" style={{ marginBottom: 16 }}>
-              {floor.sections.map((section, si) => (
-                <div key={si} style={{ marginBottom: 12 }}>
-                  <Typography.Text strong>
-                    {section.name} ({sectionTypes.find((t) => t.value === section.type)?.label})
-                  </Typography.Text>
-                  <div className="seat-map" style={{ marginTop: 8 }}>
-                    {section.rows.map((row) => (
-                      <div key={row.row} className="seat-row">
-                        <span className="seat-row-label">{row.row}</span>
-                        {Array.from({ length: row.count }, (_, i) => (
-                          <div key={i} className="seat available">
-                            {i + 1}
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <TheaterSeatMap
+                sections={buildPreviewSections(floor)}
+              />
             </Card>
           ))}
 

@@ -171,13 +171,23 @@ router.post('/:id/floors/:floorId/sections', authenticate, requireAdmin, async (
 // Toplu koltuk ekleme
 router.post('/:id/sections/:sectionId/seats', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { rows } = req.body; // [{ row: "A", count: 20 }, { row: "B", count: 20 }]
+    const { rows } = req.body;
+    // Supports both formats:
+    // Old: { row: "A", count: 20 } → seats 1-20
+    // New: { row: "A", start: 21, end: 31, step: 2 } → seats 21,23,25,27,29,31
     const sectionId = parseInt(req.params.sectionId);
 
     const seats: { sectionId: number; row: string; number: number }[] = [];
     for (const r of rows) {
-      for (let i = 1; i <= r.count; i++) {
-        seats.push({ sectionId, row: r.row, number: i });
+      if (r.start !== undefined && r.end !== undefined) {
+        const step = r.step || 1;
+        for (let n = r.start; n <= r.end; n += step) {
+          seats.push({ sectionId, row: r.row, number: n });
+        }
+      } else {
+        for (let i = 1; i <= r.count; i++) {
+          seats.push({ sectionId, row: r.row, number: i });
+        }
       }
     }
 

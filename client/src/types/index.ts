@@ -28,7 +28,7 @@ export interface Section {
   id: number;
   floorId: number;
   name: string;
-  type: 'orchestra' | 'balcony' | 'box';
+  type: 'orchestra' | 'balcony' | 'box' | 'left_wing' | 'center' | 'right_wing';
   seats: Seat[];
 }
 
