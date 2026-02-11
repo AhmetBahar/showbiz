@@ -1,12 +1,25 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaLibSql } from '@prisma/adapter-libsql';
+import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+function createPrisma(): PrismaClient {
+  if (process.env.TURSO_DATABASE_URL) {
+    const libsql = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+    const adapter = new PrismaLibSql(libsql as any);
+    return new PrismaClient({ adapter } as any);
+  }
+  return new PrismaClient();
+}
+
+const prisma = createPrisma();
 
 async function main() {
-  // Admin kullanıcı oluştur
   const adminPassword = await bcrypt.hash('admin123', 10);
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'admin@showbiz.com' },
     update: {},
     create: {
@@ -17,9 +30,8 @@ async function main() {
     },
   });
 
-  // Agent kullanıcı oluştur
   const agentPassword = await bcrypt.hash('agent123', 10);
-  const agent = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'agent@showbiz.com' },
     update: {},
     create: {
@@ -30,7 +42,6 @@ async function main() {
     },
   });
 
-  // Kapıcı kullanıcı oluştur
   const usherPassword = await bcrypt.hash('usher123', 10);
   await prisma.user.upsert({
     where: { email: 'usher@showbiz.com' },
