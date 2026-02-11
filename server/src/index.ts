@@ -3,20 +3,17 @@ import cors from 'cors';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
-import { createClient } from '@libsql/client';
 import authRoutes from './routes/auth';
 import venueRoutes from './routes/venues';
 import showRoutes from './routes/shows';
 import ticketRoutes from './routes/tickets';
 import reportRoutes from './routes/reports';
 
-// Her zaman libsql adapter kullan (hem lokal file: hem Turso libsql:// destekler)
-const dbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || 'file:./dev.db';
-const libsql = createClient({
-  url: dbUrl,
+// PrismaLibSql (v7.x) = AdapterFactory - config objesi alır, kendi client'ını oluşturur
+const adapter = new PrismaLibSql({
+  url: process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || 'file:./dev.db',
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
-const adapter = new PrismaLibSql(libsql as any);
 export const prisma = new PrismaClient({ adapter } as any);
 
 const app = express();
