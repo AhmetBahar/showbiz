@@ -10,21 +10,14 @@ import showRoutes from './routes/shows';
 import ticketRoutes from './routes/tickets';
 import reportRoutes from './routes/reports';
 
-function createPrisma(): PrismaClient {
-  // Production: Turso kullan
-  if (process.env.TURSO_DATABASE_URL) {
-    const libsql = createClient({
-      url: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    });
-    const adapter = new PrismaLibSql(libsql as any);
-    return new PrismaClient({ adapter } as any);
-  }
-  // Development: Lokal SQLite
-  return new PrismaClient();
-}
-
-export const prisma = createPrisma();
+// Her zaman libsql adapter kullan (hem lokal file: hem Turso libsql:// destekler)
+const dbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || 'file:./dev.db';
+const libsql = createClient({
+  url: dbUrl,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+const adapter = new PrismaLibSql(libsql as any);
+export const prisma = new PrismaClient({ adapter } as any);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
