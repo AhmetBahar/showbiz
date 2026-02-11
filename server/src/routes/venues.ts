@@ -130,28 +130,6 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
-
-    // Collect all seat IDs for this venue
-    const seats = await prisma.seat.findMany({
-      where: { section: { floor: { venueId } } },
-      select: { id: true },
-    });
-    const seatIds = seats.map((s) => s.id);
-
-    // Delete tickets referencing these seats
-    if (seatIds.length > 0) {
-      await prisma.ticket.deleteMany({ where: { seatId: { in: seatIds } } });
-    }
-
-    // Delete shows and categories for this venue
-    const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
-    const showIds = shows.map((s) => s.id);
-    if (showIds.length > 0) {
-      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
-      await prisma.show.deleteMany({ where: { venueId } });
-    }
-
-    // Now safely delete venue (cascades to floors → sections → seats)
     await prisma.venue.delete({ where: { id: venueId } });
     return res.json({ message: 'Salon silindi' });
   } catch (error) {

@@ -72,7 +72,7 @@ model Show {
   status      String   @default("upcoming") // upcoming, ongoing, completed, cancelled
   createdAt   DateTime @default(now())
 
-  venue      Venue            @relation(fields: [venueId], references: [id])
+  venue      Venue            @relation(fields: [venueId], references: [id], onDelete: Cascade)
   categories TicketCategory[]
   tickets    Ticket[]
 }
@@ -112,9 +112,9 @@ model Ticket {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  show       Show           @relation(fields: [showId], references: [id])
-  seat       Seat           @relation(fields: [seatId], references: [id])
-  category   TicketCategory @relation(fields: [categoryId], references: [id])
+  show       Show           @relation(fields: [showId], references: [id], onDelete: Cascade)
+  seat       Seat           @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  category   TicketCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   reservedBy User?          @relation("ReservedBy", fields: [reservedById], references: [id])
   soldBy     User?          @relation("SoldBy", fields: [soldById], references: [id])
 
