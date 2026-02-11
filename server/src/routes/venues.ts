@@ -131,28 +131,58 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
 
-    // Manually delete in correct order (Turso doesn't support cascade FK)
+    // Step 1: Get all floor IDs
+    const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
+    const floorIds = floors.map((f: any) => f.id);
+
+    // Step 2: Get all section IDs
+    const sections = floorIds.length > 0
+      ? await prisma.section.findMany({ where: { floorId: { in: floorIds } }, select: { id: true } })
+      : [];
+    const sectionIds = sections.map((s: any) => s.id);
+
+    // Step 3: Get all seat IDs
+    const seats = sectionIds.length > 0
+      ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
+      : [];
+    const seatIds = seats.map((s: any) => s.id);
+
+    // Step 4: Get all show IDs
     const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
     const showIds = shows.map((s: any) => s.id);
+
+    // Step 5: Delete tickets (by showId and seatId)
     if (showIds.length > 0) {
       await prisma.ticket.deleteMany({ where: { showId: { in: showIds } } });
-      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
-      await prisma.show.deleteMany({ where: { id: { in: showIds } } });
     }
-
-    // Delete seats (need to clear any remaining ticket references)
-    const seatIds = (await prisma.seat.findMany({
-      where: { section: { floor: { venueId } } },
-      select: { id: true },
-    })).map((s: any) => s.id);
     if (seatIds.length > 0) {
       await prisma.ticket.deleteMany({ where: { seatId: { in: seatIds } } });
     }
 
-    // Delete venue structure bottom-up
-    await prisma.seat.deleteMany({ where: { section: { floor: { venueId } } } });
-    await prisma.section.deleteMany({ where: { floor: { venueId } } });
+    // Step 6: Delete categories
+    if (showIds.length > 0) {
+      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
+    }
+
+    // Step 7: Delete shows
+    if (showIds.length > 0) {
+      await prisma.show.deleteMany({ where: { id: { in: showIds } } });
+    }
+
+    // Step 8: Delete seats
+    if (sectionIds.length > 0) {
+      await prisma.seat.deleteMany({ where: { sectionId: { in: sectionIds } } });
+    }
+
+    // Step 9: Delete sections
+    if (floorIds.length > 0) {
+      await prisma.section.deleteMany({ where: { floorId: { in: floorIds } } });
+    }
+
+    // Step 10: Delete floors
     await prisma.floor.deleteMany({ where: { venueId } });
+
+    // Step 11: Delete venue
     await prisma.venue.delete({ where: { id: venueId } });
     return res.json({ message: 'Salon silindi' });
   } catch (error) {
