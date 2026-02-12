@@ -130,65 +130,44 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
-    const log: string[] = [];
 
-    // Read IDs with Prisma ORM
+    // Collect all related IDs first
     const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
     const floorIds = floors.map((f) => f.id);
-    log.push(`floors: ${floorIds.length}`);
 
     const sections = floorIds.length > 0
       ? await prisma.section.findMany({ where: { floorId: { in: floorIds } }, select: { id: true } })
       : [];
     const sectionIds = sections.map((s) => s.id);
-    log.push(`sections: ${sectionIds.length}`);
-
-    const seats = sectionIds.length > 0
-      ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
-      : [];
-    const seatIds = seats.map((s) => s.id);
-    log.push(`seats: ${seatIds.length}`);
 
     const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
     const showIds = shows.map((s) => s.id);
-    log.push(`shows: ${showIds.length}`);
 
-    // Delete step by step with raw SQL, logging each step
-    const exec = async (label: string, sql: string) => {
-      try {
-        await prisma.$executeRawUnsafe(sql);
-        log.push(`${label}: ok`);
-      } catch (e: any) {
-        log.push(`${label}: FAILED - ${e.message || e}`);
-        throw e;
-      }
-    };
+    // Delete in correct order: tickets → categories → shows → seats → sections → floors → venue
+    // Use individual deleteMany calls in a transaction
+    await prisma.$transaction([
+      // Delete tickets by showId
+      ...(showIds.length > 0 ? [prisma.ticket.deleteMany({ where: { showId: { in: showIds } } })] : []),
+      // Delete tickets by seatId (for seats belonging to this venue)
+      ...(sectionIds.length > 0 ? [prisma.ticket.deleteMany({ where: { seat: { sectionId: { in: sectionIds } } } })] : []),
+      // Delete ticket categories
+      ...(showIds.length > 0 ? [prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } })] : []),
+      // Delete shows
+      prisma.show.deleteMany({ where: { venueId } }),
+      // Delete seats
+      ...(sectionIds.length > 0 ? [prisma.seat.deleteMany({ where: { sectionId: { in: sectionIds } } })] : []),
+      // Delete sections
+      ...(floorIds.length > 0 ? [prisma.section.deleteMany({ where: { floorId: { in: floorIds } } })] : []),
+      // Delete floors
+      prisma.floor.deleteMany({ where: { venueId } }),
+      // Delete venue
+      prisma.venue.delete({ where: { id: venueId } }),
+    ]);
 
-    if (showIds.length > 0) {
-      await exec('del tickets by show', `DELETE FROM Ticket WHERE showId IN (${showIds.join(',')})`);
-    }
-    if (seatIds.length > 0) {
-      await exec('del tickets by seat', `DELETE FROM Ticket WHERE seatId IN (${seatIds.join(',')})`);
-    }
-    if (showIds.length > 0) {
-      await exec('del categories', `DELETE FROM TicketCategory WHERE showId IN (${showIds.join(',')})`);
-      await exec('del shows', `DELETE FROM Show WHERE id IN (${showIds.join(',')})`);
-    }
-    if (seatIds.length > 0) {
-      await exec('del seats', `DELETE FROM Seat WHERE id IN (${seatIds.join(',')})`);
-    }
-    if (sectionIds.length > 0) {
-      await exec('del sections', `DELETE FROM Section WHERE id IN (${sectionIds.join(',')})`);
-    }
-    if (floorIds.length > 0) {
-      await exec('del floors', `DELETE FROM Floor WHERE id IN (${floorIds.join(',')})`);
-    }
-    await exec('del venue', `DELETE FROM Venue WHERE id = ${venueId}`);
-
-    return res.json({ message: 'Salon silindi', log });
+    return res.json({ message: 'Salon silindi' });
   } catch (error: any) {
-    console.error(error);
-    return res.status(500).json({ error: 'Sunucu hatası', detail: error.message || String(error) });
+    console.error('Venue delete error:', error);
+    return res.status(500).json({ error: 'Sunucu hatası', detail: error.message });
   }
 });
 
