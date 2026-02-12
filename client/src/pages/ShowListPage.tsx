@@ -25,8 +25,8 @@ export default function ShowListPage() {
       await showApi.delete(id);
       message.success('Gösteri silindi');
       fetchShows();
-    } catch {
-      message.error('Gösteri silinemedi');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Gösteri silinemedi');
     }
   };
 

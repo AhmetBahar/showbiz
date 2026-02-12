@@ -68,6 +68,7 @@ export const showApi = {
 // Ticket
 export const ticketApi = {
   getByShow: (showId: number) => api.get(`/tickets/show/${showId}`),
+  barcodeImage: (id: number) => api.get(`/tickets/${id}/barcode`, { responseType: 'blob' }),
   reserve: (id: number, data: any) => api.put(`/tickets/${id}/reserve`, data),
   sell: (id: number, data: any) => api.put(`/tickets/${id}/sell`, data),
   release: (id: number) => api.put(`/tickets/${id}/release`),

@@ -11,15 +11,22 @@ import {
   Select,
   message,
   Divider,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Popconfirm,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   ShoppingCartOutlined,
   ScanOutlined,
   BarChartOutlined,
+  PlusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { showApi } from '../services/api';
-import { Show } from '../types';
+import { Show, TicketCategory } from '../types';
 import { useAuthStore } from '../store/authStore';
 import dayjs from 'dayjs';
 
@@ -28,13 +35,24 @@ export default function ShowDetailPage() {
   const navigate = useNavigate();
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(true);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryForm] = Form.useForm();
   const user = useAuthStore((s) => s.user);
 
+  const fetchShow = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await showApi.get(parseInt(id, 10));
+      setShow(res.data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    showApi
-      .get(parseInt(id!))
-      .then((res) => setShow(res.data))
-      .finally(() => setLoading(false));
+    fetchShow();
   }, [id]);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
@@ -63,6 +81,38 @@ export default function ShowDetailPage() {
       message.success(res.data.message);
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Bilet oluşturulamadı');
+    }
+  };
+
+  const handleCreateCategory = async (values: { name: string; price: number; color?: string; description?: string }) => {
+    if (!show) return;
+    setCategorySaving(true);
+    try {
+      await showApi.addCategory(show.id, values);
+      message.success('Kategori oluşturuldu');
+      setCategoryModalOpen(false);
+      categoryForm.resetFields();
+      await fetchShow();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Kategori oluşturulamadı');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (category: TicketCategory) => {
+    if (!show) return;
+    if (show.categories.length <= 1) {
+      message.error('En az bir kategori kalmalıdır');
+      return;
+    }
+
+    try {
+      await showApi.deleteCategory(show.id, category.id);
+      message.success('Kategori silindi');
+      await fetchShow();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Kategori silinemedi');
     }
   };
 
@@ -115,22 +165,69 @@ export default function ShowDetailPage() {
       </Card>
 
       <Card title="Bilet Kategorileri" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          {show.categories.map((cat) => (
-            <Tag key={cat.id} color={cat.color || 'default'} style={{ fontSize: 14, padding: '4px 12px' }}>
-              {cat.name} - {cat.price} TL
-            </Tag>
-          ))}
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Space wrap>
+            {show.categories.map((cat) => (
+              <Space key={cat.id} size={8}>
+                <Tag color={cat.color || 'default'} style={{ fontSize: 14, padding: '4px 12px' }}>
+                  {cat.name} - {cat.price} TL
+                </Tag>
+                {user?.role === 'admin' && (
+                  <Popconfirm
+                    title={`"${cat.name}" kategorisi silinsin mi?`}
+                    onConfirm={() => handleDeleteCategory(cat)}
+                  >
+                    <Button size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
+                )}
+              </Space>
+            ))}
+          </Space>
         </Space>
         {user?.role === 'admin' && (
           <>
             <Divider />
-            <Button onClick={handleInitializeTickets}>
-              Biletleri Yeniden Oluştur
-            </Button>
+            <Space>
+              <Button type="dashed" icon={<PlusOutlined />} onClick={() => setCategoryModalOpen(true)}>
+                Kategori Ekle
+              </Button>
+              <Button onClick={handleInitializeTickets}>
+                Biletleri Yeniden Oluştur
+              </Button>
+            </Space>
           </>
         )}
       </Card>
+
+      <Modal
+        title="Kategori Ekle"
+        open={categoryModalOpen}
+        onCancel={() => setCategoryModalOpen(false)}
+        onOk={() => categoryForm.submit()}
+        okButtonProps={{ loading: categorySaving }}
+        okText="Kaydet"
+        cancelText="Vazgeç"
+      >
+        <Form
+          form={categoryForm}
+          layout="vertical"
+          onFinish={handleCreateCategory}
+          initialValues={{ color: '#1890ff', price: 0 }}
+        >
+          <Form.Item name="name" label="Kategori Adı" rules={[{ required: true, message: 'Kategori adı giriniz' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="price" label="Fiyat (TL)" rules={[{ required: true, message: 'Fiyat giriniz' }]}>
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="color" label="Renk">
+            <Input type="color" style={{ width: 64, padding: 4 }} />
+          </Form.Item>
+          <Form.Item name="description" label="Açıklama">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

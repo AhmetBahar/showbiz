@@ -78,7 +78,24 @@ export default function TicketSalesPage() {
     setDrawerOpen(true);
   };
 
-  const printTickets = (ticketsToPrint: Ticket[]) => {
+  const blobToDataUrl = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Barkod görseli okunamadı'));
+      reader.readAsDataURL(blob);
+    });
+
+  const fetchBarcodeDataUrl = async (ticketId: number): Promise<string | null> => {
+    try {
+      const response = await ticketApi.barcodeImage(ticketId);
+      return await blobToDataUrl(response.data);
+    } catch {
+      return null;
+    }
+  };
+
+  const printTickets = async (ticketsToPrint: Ticket[]) => {
     if (!show || ticketsToPrint.length === 0) return;
     if (!ticketsToPrint.every((t) => t.status === 'sold')) {
       message.error('PDF çıktısı yalnızca satılmış biletler için alınabilir');
@@ -86,11 +103,20 @@ export default function TicketSalesPage() {
     }
 
     const printWindow = window.open('', '_blank', 'width=1100,height=900');
-    if (!printWindow) return;
+    if (!printWindow) {
+      message.error('Yazdırma penceresi açılamadı. Tarayıcı popup engelini kapatın.');
+      return;
+    }
+
+    const barcodeEntries = await Promise.all(
+      ticketsToPrint.map(async (ticket) => [ticket.id, await fetchBarcodeDataUrl(ticket.id)] as const)
+    );
+    const barcodeMap = new Map<number, string | null>(barcodeEntries);
 
     const ticketsHtml = ticketsToPrint
       .map((ticket) => {
         const seat = `${ticket.seat.section.name} / ${ticket.seat.row}-${ticket.seat.number}`;
+        const barcodeImg = barcodeMap.get(ticket.id);
         return `
           <section class="ticket">
             <h2>${escapeHtml(show.name)}</h2>
@@ -99,6 +125,11 @@ export default function TicketSalesPage() {
             <p><strong>Koltuk:</strong> ${escapeHtml(seat)}</p>
             <p><strong>Kategori:</strong> ${escapeHtml(ticket.category.name)} (${escapeHtml(`${ticket.category.price} TL`)})</p>
             <p><strong>Bilet Sahibi:</strong> ${escapeHtml(ticket.holderName || '-')}</p>
+            ${
+              barcodeImg
+                ? `<div class="barcode-wrap"><img class="barcode-image" src="${barcodeImg}" alt="Barkod" /></div>`
+                : ''
+            }
             <p class="barcode"><strong>Barkod:</strong> ${escapeHtml(ticket.barcode || '-')}</p>
           </section>
         `;
@@ -123,6 +154,8 @@ export default function TicketSalesPage() {
             .ticket:not(:last-child) { page-break-after: always; }
             h2 { margin: 0 0 10px; font-size: 20px; }
             p { margin: 6px 0; font-size: 14px; }
+            .barcode-wrap { margin-top: 10px; }
+            .barcode-image { width: 360px; max-width: 100%; height: auto; display: block; }
             .barcode { margin-top: 10px; font-size: 15px; letter-spacing: 1px; }
           </style>
         </head>
@@ -226,7 +259,9 @@ export default function TicketSalesPage() {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
-  const handleTicketPdf = () => printTickets(selectedTickets);
+  const handleTicketPdf = () => {
+    void printTickets(selectedTickets);
+  };
 
   const handleReprintTicket = (ticketId: number) => {
     const ticket = tickets.find((t) => t.id === ticketId);
@@ -234,7 +269,7 @@ export default function TicketSalesPage() {
       message.error('Yalnızca satılmış biletler tekrar basılabilir');
       return;
     }
-    printTickets([ticket]);
+    void printTickets([ticket]);
   };
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
@@ -300,7 +335,7 @@ export default function TicketSalesPage() {
                 Satış Yap
               </Button>
               <Button icon={<FilePdfOutlined />} disabled={!canTicketPdf} onClick={handleTicketPdf}>
-                Bilet PDF
+                Bilet Bas
               </Button>
               {selectedTickets.length === 1 && selectedTickets[0].status === 'reserved' && (
                 <Popconfirm title="Rezervasyon çözülsün mü?" onConfirm={() => handleRelease(selectedTickets[0].id)}>

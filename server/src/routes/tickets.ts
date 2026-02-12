@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../index';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import crypto from 'crypto';
+const bwipjs = require('bwip-js');
 
 const router = Router();
 
@@ -12,8 +13,13 @@ function generateBarcode(): string {
 // Gösteri biletlerini getir (koltuk haritası için)
 router.get('/show/:showId', authenticate, async (req, res) => {
   try {
+    const showId = Number.parseInt(req.params.showId, 10);
+    if (!Number.isInteger(showId)) {
+      return res.status(400).json({ error: 'Geçersiz gösteri ID' });
+    }
+
     const tickets = await prisma.ticket.findMany({
-      where: { showId: parseInt(req.params.showId) },
+      where: { showId },
       include: {
         seat: {
           include: {
@@ -28,14 +34,70 @@ router.get('/show/:showId', authenticate, async (req, res) => {
         reservedBy: { select: { id: true, name: true } },
         soldBy: { select: { id: true, name: true } },
       },
-      orderBy: [
-        { seat: { section: { floor: { level: 'asc' } } } },
-        { seat: { row: 'asc' } },
-        { seat: { number: 'asc' } },
-      ],
     });
+
+    tickets.sort((a, b) => {
+      const levelCmp = a.seat.section.floor.level - b.seat.section.floor.level;
+      if (levelCmp !== 0) return levelCmp;
+
+      const sectionCmp = a.seat.section.name.localeCompare(b.seat.section.name, 'tr');
+      if (sectionCmp !== 0) return sectionCmp;
+
+      const rowCmp = a.seat.row.localeCompare(b.seat.row, 'tr');
+      if (rowCmp !== 0) return rowCmp;
+
+      return a.seat.number - b.seat.number;
+    });
+
     return res.json(tickets);
   } catch (error) {
+    console.error('GET /api/tickets/show/:showId failed', error);
+    return res.status(500).json({ error: 'Sunucu hatası' });
+  }
+});
+
+router.get('/:id/barcode', authenticate, async (req, res) => {
+  try {
+    const ticketId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(ticketId)) {
+      return res.status(400).json({ error: 'Geçersiz bilet ID' });
+    }
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, status: true, barcode: true },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Bilet bulunamadı' });
+    }
+    if (ticket.status !== 'sold') {
+      return res.status(400).json({ error: 'Barkod yalnızca satılmış biletler için üretilebilir' });
+    }
+
+    const barcodeValue = ticket.barcode || generateBarcode();
+    if (!ticket.barcode) {
+      await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { barcode: barcodeValue },
+      });
+    }
+
+    const pngBuffer = await bwipjs.toBuffer({
+      bcid: 'code128',
+      text: barcodeValue,
+      scale: 3,
+      height: 12,
+      includetext: false,
+      paddingwidth: 10,
+      paddingheight: 8,
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(pngBuffer);
+  } catch (error) {
+    console.error('GET /api/tickets/:id/barcode failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });

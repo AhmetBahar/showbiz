@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../index';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
 
@@ -12,37 +13,40 @@ router.get('/', authenticate, async (_req, res) => {
   try {
     const shows = await prisma.show.findMany({
       include: {
-        venue: { select: { id: true, name: true } },
         categories: true,
         _count: { select: { tickets: true } },
       },
       orderBy: { date: 'desc' },
     });
-    return res.json(shows);
+    const venueIds = [...new Set(shows.map((s) => s.venueId))];
+    const venues = await prisma.venue.findMany({
+      where: { id: { in: venueIds } },
+      select: { id: true, name: true },
+    });
+    const venueById = new Map(venues.map((v) => [v.id, v]));
+
+    const normalizedShows = shows.map((s) => ({
+      ...s,
+      venue: venueById.get(s.venueId) || { id: s.venueId, name: 'Salon Bulunamadı' },
+    }));
+
+    return res.json(normalizedShows);
   } catch (error) {
+    console.error('GET /api/shows failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
 
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    const showId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(showId)) {
+      return res.status(400).json({ error: 'Geçersiz gösteri ID' });
+    }
+
     const show = await prisma.show.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: showId },
       include: {
-        venue: {
-          include: {
-            floors: {
-              orderBy: { level: 'asc' },
-              include: {
-                sections: {
-                  include: {
-                    seats: { orderBy: [{ row: 'asc' }, { number: 'asc' }] },
-                  },
-                },
-              },
-            },
-          },
-        },
         categories: true,
       },
     });
@@ -51,9 +55,69 @@ router.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Gösteri bulunamadı' });
     }
 
-    return res.json(show);
+    let venue = await prisma.venue.findUnique({
+      where: { id: show.venueId },
+      include: {
+        floors: {
+          include: {
+            sections: {
+              include: {
+                seats: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!venue) {
+      return res.status(409).json({ error: 'Gösteriye bağlı salon kaydı bulunamadı' });
+    }
+
+    venue.floors.sort((a, b) => a.level - b.level);
+    for (const floor of venue.floors) {
+      floor.sections.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+      for (const section of floor.sections) {
+        section.seats.sort((a, b) => {
+          const rowCmp = a.row.localeCompare(b.row, 'tr');
+          if (rowCmp !== 0) return rowCmp;
+          return a.number - b.number;
+        });
+      }
+    }
+
+    return res.json({ ...show, venue });
   } catch (error) {
-    return res.status(500).json({ error: 'Sunucu hatası' });
+    console.error('GET /api/shows/:id failed', error);
+    try {
+      const showId = Number.parseInt(req.params.id, 10);
+      const show = await prisma.show.findUnique({
+        where: { id: showId },
+        include: { categories: true },
+      });
+
+      if (!show) {
+        return res.status(404).json({ error: 'Gösteri bulunamadı' });
+      }
+
+      const venue = await prisma.venue.findUnique({
+        where: { id: show.venueId },
+        select: { id: true, name: true },
+      });
+
+      return res.json({
+        ...show,
+        venue: venue || { id: show.venueId, name: 'Salon Bulunamadı' },
+        _warning: 'SHOW_DETAIL_FALLBACK',
+      });
+    } catch (fallbackError: any) {
+      console.error('GET /api/shows/:id fallback failed', fallbackError);
+      const originalError = error as any;
+      return res.status(500).json({
+        error: 'Sunucu hatası',
+        code: fallbackError?.code || originalError?.code || 'SHOW_DETAIL_UNKNOWN',
+      });
+    }
   }
 });
 
@@ -91,9 +155,31 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    await prisma.show.delete({ where: { id: parseInt(req.params.id) } });
+    const showId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(showId)) {
+      return res.status(400).json({ error: 'Geçersiz gösteri ID' });
+    }
+
+    const existing = await prisma.show.findUnique({
+      where: { id: showId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Gösteri bulunamadı' });
+    }
+
+    // LibSQL/Turso tarafında interactive transaction sorunlarını önlemek için
+    // silmeleri adım adım yapıyoruz.
+    await prisma.ticket.deleteMany({ where: { showId } });
+    await prisma.ticketCategory.deleteMany({ where: { showId } });
+    await prisma.show.delete({ where: { id: showId } });
+
     return res.json({ message: 'Gösteri silindi' });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      return res.status(409).json({ error: 'Gösteri silinemedi: ilişkili kayıtlar mevcut' });
+    }
+    console.error('DELETE /api/shows/:id failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
