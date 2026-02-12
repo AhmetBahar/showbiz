@@ -4,6 +4,10 @@ import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+function isValidHexColor(value: string): boolean {
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value);
+}
+
 router.get('/', authenticate, async (_req, res) => {
   try {
     const shows = await prisma.show.findMany({
@@ -97,14 +101,38 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
 // Bilet kategorisi ekle
 router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { name, price, color, description } = req.body;
+    const showId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(showId)) {
+      return res.status(400).json({ error: 'Geçersiz gösteri ID' });
+    }
+
+    const show = await prisma.show.findUnique({ where: { id: showId }, select: { id: true } });
+    if (!show) {
+      return res.status(404).json({ error: 'Gösteri bulunamadı' });
+    }
+
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const parsedPrice = Number(req.body.price);
+    const color = typeof req.body.color === 'string' ? req.body.color.trim() : undefined;
+    const description = typeof req.body.description === 'string' ? req.body.description.trim() : undefined;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Kategori adı zorunlu' });
+    }
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ error: 'Kategori fiyatı 0 veya daha büyük bir sayı olmalı' });
+    }
+    if (color && !isValidHexColor(color)) {
+      return res.status(400).json({ error: 'Geçersiz renk formatı' });
+    }
+
     const category = await prisma.ticketCategory.create({
       data: {
-        showId: parseInt(req.params.id),
+        showId,
         name,
-        price,
-        color,
-        description,
+        price: parsedPrice,
+        color: color || null,
+        description: description || null,
       },
     });
     return res.status(201).json(category);

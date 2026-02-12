@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form, Input, Select, DatePicker, Button, Card, Typography, message, Space, Table, InputNumber, ColorPicker } from 'antd';
+import { Form, Input, Select, DatePicker, Button, Card, Typography, message, Space, InputNumber } from 'antd';
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { venueApi, showApi } from '../services/api';
@@ -21,6 +21,21 @@ export default function ShowCreatePage() {
   }, []);
 
   const handleCreateShow = async (values: any) => {
+    if (categories.length === 0) {
+      message.error('En az bir kategori eklemelisiniz');
+      return;
+    }
+
+    const hasInvalidCategory = categories.some((cat) => {
+      const name = cat.name?.trim();
+      return !name || !Number.isFinite(cat.price) || cat.price < 0;
+    });
+
+    if (hasInvalidCategory) {
+      message.error('Kategori adı boş olamaz ve fiyat 0 veya daha büyük olmalıdır');
+      return;
+    }
+
     setLoading(true);
     try {
       const show = await showApi.create({
@@ -34,7 +49,11 @@ export default function ShowCreatePage() {
 
       // Kategorileri ekle
       for (const cat of categories) {
-        await showApi.addCategory(createdShowId, cat);
+        await showApi.addCategory(createdShowId, {
+          name: cat.name.trim(),
+          price: cat.price,
+          color: cat.color,
+        });
       }
 
       // Biletleri oluştur
@@ -100,7 +119,7 @@ export default function ShowCreatePage() {
               <InputNumber
                 placeholder="Fiyat"
                 value={cat.price}
-                onChange={(v) => updateCategory(i, 'price', v)}
+                onChange={(v) => updateCategory(i, 'price', v ?? 0)}
                 min={0}
                 addonAfter="TL"
                 style={{ width: 140 }}

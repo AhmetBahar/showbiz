@@ -11,14 +11,16 @@ import {
   Form,
   Input,
   message,
+  Modal,
   Badge,
   Tooltip,
   Divider,
   Row,
   Col,
   Popconfirm,
+  Checkbox,
 } from 'antd';
-import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { showApi, ticketApi } from '../services/api';
 import { Show, Ticket } from '../types';
 import TheaterSeatMap from '../components/TheaterSeatMap';
@@ -43,6 +45,7 @@ export default function TicketSalesPage() {
       ]);
       setShow(showRes.data);
       setTickets(ticketRes.data);
+      return ticketRes.data as Ticket[];
     } finally {
       setLoading(false);
     }
@@ -69,36 +72,112 @@ export default function TicketSalesPage() {
         holderName: first.holderName || '',
         holderPhone: first.holderPhone || '',
         holderEmail: first.holderEmail || '',
+        printAfterSell: true,
       });
     }
     setDrawerOpen(true);
+  };
+
+  const printTickets = (ticketsToPrint: Ticket[]) => {
+    if (!show || ticketsToPrint.length === 0) return;
+    if (!ticketsToPrint.every((t) => t.status === 'sold')) {
+      message.error('PDF çıktısı yalnızca satılmış biletler için alınabilir');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1100,height=900');
+    if (!printWindow) return;
+
+    const ticketsHtml = ticketsToPrint
+      .map((ticket) => {
+        const seat = `${ticket.seat.section.name} / ${ticket.seat.row}-${ticket.seat.number}`;
+        return `
+          <section class="ticket">
+            <h2>${escapeHtml(show.name)}</h2>
+            <p><strong>Salon:</strong> ${escapeHtml(show.venue?.name || '-')}</p>
+            <p><strong>Tarih:</strong> ${escapeHtml(new Date(show.date).toLocaleString('tr-TR'))}</p>
+            <p><strong>Koltuk:</strong> ${escapeHtml(seat)}</p>
+            <p><strong>Kategori:</strong> ${escapeHtml(ticket.category.name)} (${escapeHtml(`${ticket.category.price} TL`)})</p>
+            <p><strong>Bilet Sahibi:</strong> ${escapeHtml(ticket.holderName || '-')}</p>
+            <p class="barcode"><strong>Barkod:</strong> ${escapeHtml(ticket.barcode || '-')}</p>
+          </section>
+        `;
+      })
+      .join('');
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8" />
+          <title>Bilet Çıktısı</title>
+          <style>
+            body { font-family: Arial, sans-serif; background: #fff; color: #111; margin: 20px; }
+            .ticket {
+              border: 1px solid #333;
+              border-radius: 8px;
+              padding: 16px;
+              margin-bottom: 16px;
+              page-break-inside: avoid;
+            }
+            .ticket:not(:last-child) { page-break-after: always; }
+            h2 { margin: 0 0 10px; font-size: 20px; }
+            p { margin: 6px 0; font-size: 14px; }
+            .barcode { margin-top: 10px; font-size: 15px; letter-spacing: 1px; }
+          </style>
+        </head>
+        <body>${ticketsHtml}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 200);
   };
 
   const handleAction = async (values: any) => {
     setProcessing(true);
     try {
       const ids = selectedTickets.map((t) => t.id);
+      const { printAfterSell, ...payload } = values;
 
       if (actionType === 'reserve') {
         if (ids.length === 1) {
-          await ticketApi.reserve(ids[0], values);
+          await ticketApi.reserve(ids[0], payload);
         } else {
-          await ticketApi.bulkReserve({ ticketIds: ids, ...values });
+          await ticketApi.bulkReserve({ ticketIds: ids, ...payload });
         }
         message.success(`${ids.length} bilet rezerve edildi`);
       } else {
         if (ids.length === 1) {
-          await ticketApi.sell(ids[0], values);
+          await ticketApi.sell(ids[0], payload);
         } else {
-          await ticketApi.bulkSell({ ticketIds: ids, ...values });
+          await ticketApi.bulkSell({ ticketIds: ids, ...payload });
         }
         message.success(`${ids.length} bilet satıldı`);
       }
 
+      const soldTicketIds = actionType === 'sell' ? [...ids] : [];
       setDrawerOpen(false);
       setSelectedTickets([]);
       form.resetFields();
-      await fetchData();
+      const latestTickets = await fetchData();
+
+      if (soldTicketIds.length > 0 && printAfterSell) {
+        const soldTickets = (latestTickets || [])
+          .filter((t) => soldTicketIds.includes(t.id) && t.status === 'sold');
+
+        if (soldTickets.length > 0) {
+          Modal.confirm({
+            title: 'Bilet çıktısı alınsın mı?',
+            content: `${soldTickets.length} bilet için yazdırma penceresi açılacak.`,
+            okText: 'Yazdır',
+            cancelText: 'Vazgeç',
+            onOk: () => printTickets(soldTickets),
+          });
+        }
+      }
     } catch (error: any) {
       message.error(error.response?.data?.error || 'İşlem başarısız');
     } finally {
@@ -139,6 +218,25 @@ export default function TicketSalesPage() {
     }
   };
 
+  const escapeHtml = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  const handleTicketPdf = () => printTickets(selectedTickets);
+
+  const handleReprintTicket = (ticketId: number) => {
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket || ticket.status !== 'sold') {
+      message.error('Yalnızca satılmış biletler tekrar basılabilir');
+      return;
+    }
+    printTickets([ticket]);
+  };
+
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!show) return <Typography.Text>Gösteri bulunamadı</Typography.Text>;
 
@@ -169,6 +267,7 @@ export default function TicketSalesPage() {
 
   const canReserve = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available');
   const canSell = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available' || t.status === 'reserved');
+  const canTicketPdf = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'sold');
 
   const selectedSeatIds = new Set(selectedTickets.map((t) => t.seatId));
 
@@ -200,6 +299,9 @@ export default function TicketSalesPage() {
               <Button type="primary" danger disabled={!canSell} onClick={() => openAction('sell')}>
                 Satış Yap
               </Button>
+              <Button icon={<FilePdfOutlined />} disabled={!canTicketPdf} onClick={handleTicketPdf}>
+                Bilet PDF
+              </Button>
               {selectedTickets.length === 1 && selectedTickets[0].status === 'reserved' && (
                 <Popconfirm title="Rezervasyon çözülsün mü?" onConfirm={() => handleRelease(selectedTickets[0].id)}>
                   <Button>Rezervasyon Çöz</Button>
@@ -209,6 +311,11 @@ export default function TicketSalesPage() {
                 <Popconfirm title="Bilet iptal edilsin mi?" onConfirm={() => handleCancel(selectedTickets[0].id)}>
                   <Button danger>İptal Et</Button>
                 </Popconfirm>
+              )}
+              {selectedTickets.length === 1 && selectedTickets[0].status === 'sold' && (
+                <Button onClick={() => handleReprintTicket(selectedTickets[0].id)}>
+                  Tekrar Bas
+                </Button>
               )}
               {selectedTickets.length === 1 && selectedTickets[0].status === 'cancelled' && (
                 <Popconfirm title="Bilet sıfırlansın mı?" onConfirm={() => handleReset(selectedTickets[0].id)}>
@@ -305,6 +412,11 @@ export default function TicketSalesPage() {
           <Form.Item name="holderEmail" label="E-posta">
             <Input prefix={<MailOutlined />} type="email" />
           </Form.Item>
+          {actionType === 'sell' && (
+            <Form.Item name="printAfterSell" valuePropName="checked" initialValue={true}>
+              <Checkbox>Satış sonrası bilet bas</Checkbox>
+            </Form.Item>
+          )}
           <Form.Item>
             <Button
               type="primary"
