@@ -131,7 +131,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
 
-    // Collect all related IDs first
+    // Collect all related IDs using flat queries (no nested filters)
     const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
     const floorIds = floors.map((f) => f.id);
 
@@ -140,29 +140,35 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
       : [];
     const sectionIds = sections.map((s) => s.id);
 
+    const seats = sectionIds.length > 0
+      ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
+      : [];
+    const seatIds = seats.map((s) => s.id);
+
     const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
     const showIds = shows.map((s) => s.id);
 
-    // Delete in correct order: tickets → categories → shows → seats → sections → floors → venue
-    // Use individual deleteMany calls in a transaction
-    await prisma.$transaction([
-      // Delete tickets by showId
-      ...(showIds.length > 0 ? [prisma.ticket.deleteMany({ where: { showId: { in: showIds } } })] : []),
-      // Delete tickets by seatId (for seats belonging to this venue)
-      ...(sectionIds.length > 0 ? [prisma.ticket.deleteMany({ where: { seat: { sectionId: { in: sectionIds } } } })] : []),
-      // Delete ticket categories
-      ...(showIds.length > 0 ? [prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } })] : []),
-      // Delete shows
-      prisma.show.deleteMany({ where: { venueId } }),
-      // Delete seats
-      ...(sectionIds.length > 0 ? [prisma.seat.deleteMany({ where: { sectionId: { in: sectionIds } } })] : []),
-      // Delete sections
-      ...(floorIds.length > 0 ? [prisma.section.deleteMany({ where: { floorId: { in: floorIds } } })] : []),
-      // Delete floors
-      prisma.floor.deleteMany({ where: { venueId } }),
-      // Delete venue
-      prisma.venue.delete({ where: { id: venueId } }),
-    ]);
+    // Delete in correct order using only flat where clauses (no nested relation filters)
+    if (showIds.length > 0) {
+      await prisma.ticket.deleteMany({ where: { showId: { in: showIds } } });
+    }
+    if (seatIds.length > 0) {
+      await prisma.ticket.deleteMany({ where: { seatId: { in: seatIds } } });
+    }
+    if (showIds.length > 0) {
+      await prisma.ticketCategory.deleteMany({ where: { showId: { in: showIds } } });
+      await prisma.show.deleteMany({ where: { id: { in: showIds } } });
+    }
+    if (seatIds.length > 0) {
+      await prisma.seat.deleteMany({ where: { id: { in: seatIds } } });
+    }
+    if (sectionIds.length > 0) {
+      await prisma.section.deleteMany({ where: { id: { in: sectionIds } } });
+    }
+    if (floorIds.length > 0) {
+      await prisma.floor.deleteMany({ where: { id: { in: floorIds } } });
+    }
+    await prisma.venue.delete({ where: { id: venueId } });
 
     return res.json({ message: 'Salon silindi' });
   } catch (error: any) {
