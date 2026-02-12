@@ -60,7 +60,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             level={4}
             style={{ color: '#fff', margin: 0, fontSize: collapsed ? 14 : 18 }}
           >
-            {collapsed ? 'SB' : 'ShowBiz'}
+            {collapsed ? 'TF' : 'TÜFEMIX'}
           </Typography.Title>
         </div>
         <Menu

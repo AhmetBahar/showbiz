@@ -33,7 +33,7 @@ export default function LoginPage() {
       <Card className="login-card">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Typography.Title level={2} style={{ margin: 0 }}>
-            ShowBiz
+            TÜFEMIX
           </Typography.Title>
           <Typography.Text type="secondary">
             Gösteri Bilet Yönetim Sistemi
