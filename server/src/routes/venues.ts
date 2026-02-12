@@ -131,36 +131,44 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
 
-    // Use raw SQL for reliable deletion on Turso/libsql
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM Ticket WHERE showId IN (SELECT id FROM Show WHERE venueId = ?)
-       OR seatId IN (
-         SELECT s.id FROM Seat s
-         INNER JOIN Section sec ON s.sectionId = sec.id
-         INNER JOIN Floor f ON sec.floorId = f.id
-         WHERE f.venueId = ?
-       )`,
-      venueId, venueId
-    );
-    await prisma.$executeRawUnsafe(
-      'DELETE FROM TicketCategory WHERE showId IN (SELECT id FROM Show WHERE venueId = ?)',
-      venueId
-    );
-    await prisma.$executeRawUnsafe('DELETE FROM Show WHERE venueId = ?', venueId);
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM Seat WHERE sectionId IN (
-         SELECT sec.id FROM Section sec
-         INNER JOIN Floor f ON sec.floorId = f.id
-         WHERE f.venueId = ?
-       )`,
-      venueId
-    );
-    await prisma.$executeRawUnsafe(
-      'DELETE FROM Section WHERE floorId IN (SELECT id FROM Floor WHERE venueId = ?)',
-      venueId
-    );
-    await prisma.$executeRawUnsafe('DELETE FROM Floor WHERE venueId = ?', venueId);
-    await prisma.$executeRawUnsafe('DELETE FROM Venue WHERE id = ?', venueId);
+    // Read IDs with Prisma ORM, then delete with simple raw SQL
+    const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
+    const floorIds = floors.map((f) => f.id);
+
+    const sections = floorIds.length > 0
+      ? await prisma.section.findMany({ where: { floorId: { in: floorIds } }, select: { id: true } })
+      : [];
+    const sectionIds = sections.map((s) => s.id);
+
+    const seats = sectionIds.length > 0
+      ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
+      : [];
+    const seatIds = seats.map((s) => s.id);
+
+    const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
+    const showIds = shows.map((s) => s.id);
+
+    // Delete with raw SQL using explicit ID lists (avoids Prisma ORM deleteMany issues on Turso)
+    if (showIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM Ticket WHERE showId IN (${showIds.join(',')})`);
+    }
+    if (seatIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM Ticket WHERE seatId IN (${seatIds.join(',')})`);
+    }
+    if (showIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM TicketCategory WHERE showId IN (${showIds.join(',')})`);
+      await prisma.$executeRawUnsafe(`DELETE FROM Show WHERE id IN (${showIds.join(',')})`);
+    }
+    if (seatIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM Seat WHERE id IN (${seatIds.join(',')})`);
+    }
+    if (sectionIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM Section WHERE id IN (${sectionIds.join(',')})`);
+    }
+    if (floorIds.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM Floor WHERE id IN (${floorIds.join(',')})`);
+    }
+    await prisma.$executeRawUnsafe(`DELETE FROM Venue WHERE id = ${venueId}`);
 
     return res.json({ message: 'Salon silindi' });
   } catch (error) {
