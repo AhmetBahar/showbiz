@@ -130,50 +130,65 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const venueId = parseInt(req.params.id);
+    const log: string[] = [];
 
-    // Read IDs with Prisma ORM, then delete with simple raw SQL
+    // Read IDs with Prisma ORM
     const floors = await prisma.floor.findMany({ where: { venueId }, select: { id: true } });
     const floorIds = floors.map((f) => f.id);
+    log.push(`floors: ${floorIds.length}`);
 
     const sections = floorIds.length > 0
       ? await prisma.section.findMany({ where: { floorId: { in: floorIds } }, select: { id: true } })
       : [];
     const sectionIds = sections.map((s) => s.id);
+    log.push(`sections: ${sectionIds.length}`);
 
     const seats = sectionIds.length > 0
       ? await prisma.seat.findMany({ where: { sectionId: { in: sectionIds } }, select: { id: true } })
       : [];
     const seatIds = seats.map((s) => s.id);
+    log.push(`seats: ${seatIds.length}`);
 
     const shows = await prisma.show.findMany({ where: { venueId }, select: { id: true } });
     const showIds = shows.map((s) => s.id);
+    log.push(`shows: ${showIds.length}`);
 
-    // Delete with raw SQL using explicit ID lists (avoids Prisma ORM deleteMany issues on Turso)
+    // Delete step by step with raw SQL, logging each step
+    const exec = async (label: string, sql: string) => {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+        log.push(`${label}: ok`);
+      } catch (e: any) {
+        log.push(`${label}: FAILED - ${e.message || e}`);
+        throw e;
+      }
+    };
+
     if (showIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM Ticket WHERE showId IN (${showIds.join(',')})`);
+      await exec('del tickets by show', `DELETE FROM Ticket WHERE showId IN (${showIds.join(',')})`);
     }
     if (seatIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM Ticket WHERE seatId IN (${seatIds.join(',')})`);
+      await exec('del tickets by seat', `DELETE FROM Ticket WHERE seatId IN (${seatIds.join(',')})`);
     }
     if (showIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM TicketCategory WHERE showId IN (${showIds.join(',')})`);
-      await prisma.$executeRawUnsafe(`DELETE FROM Show WHERE id IN (${showIds.join(',')})`);
+      await exec('del categories', `DELETE FROM TicketCategory WHERE showId IN (${showIds.join(',')})`);
+      await exec('del shows', `DELETE FROM Show WHERE id IN (${showIds.join(',')})`);
     }
     if (seatIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM Seat WHERE id IN (${seatIds.join(',')})`);
+      await exec('del seats', `DELETE FROM Seat WHERE id IN (${seatIds.join(',')})`);
     }
     if (sectionIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM Section WHERE id IN (${sectionIds.join(',')})`);
+      await exec('del sections', `DELETE FROM Section WHERE id IN (${sectionIds.join(',')})`);
     }
     if (floorIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM Floor WHERE id IN (${floorIds.join(',')})`);
+      await exec('del floors', `DELETE FROM Floor WHERE id IN (${floorIds.join(',')})`);
     }
-    await prisma.$executeRawUnsafe(`DELETE FROM Venue WHERE id = ${venueId}`);
+    await exec('del venue', `DELETE FROM Venue WHERE id = ${venueId}`);
 
-    return res.json({ message: 'Salon silindi' });
-  } catch (error) {
+    return res.json({ message: 'Salon silindi', log });
+  } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ error: 'Sunucu hatası' });
+    return res.status(500).json({ error: 'Sunucu hatası', detail: error.message || String(error) });
   }
 });
 
