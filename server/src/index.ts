@@ -30,7 +30,7 @@ app.use('/api/tickets', ticketRoutes);
 app.use('/api/reports', reportRoutes);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', version: 2 });
 });
 
 // Production: React build dosyalarını sun
