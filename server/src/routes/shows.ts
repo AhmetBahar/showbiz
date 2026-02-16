@@ -132,9 +132,12 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     const show = await prisma.show.create({
       data: { venueId, name, description, date: new Date(date) },
-      include: { venue: { select: { id: true, name: true } }, categories: true },
+      include: { categories: true },
     });
-    return res.status(201).json(show);
+    return res.status(201).json({
+      ...show,
+      venue: { id: venue.id, name: venue.name },
+    });
   } catch (error) {
     console.error('POST /api/shows failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
@@ -152,9 +155,14 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
         ...(date && { date: new Date(date) }),
         ...(status && { status }),
       },
-      include: { venue: { select: { id: true, name: true } }, categories: true },
+      include: { categories: true },
     });
-    return res.json(show);
+
+    const venue = await prisma.venue.findUnique({
+      where: { id: show.venueId },
+      select: { id: true, name: true },
+    });
+    return res.json({ ...show, venue: venue || { id: show.venueId, name: 'Salon Bulunamadı' } });
   } catch (error) {
     console.error('PUT /api/shows/:id failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
