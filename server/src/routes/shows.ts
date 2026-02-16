@@ -130,6 +130,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     });
     return res.status(201).json(show);
   } catch (error) {
+    console.error('POST /api/shows failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
@@ -149,6 +150,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     });
     return res.json(show);
   } catch (error) {
+    console.error('PUT /api/shows/:id failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
@@ -228,6 +230,7 @@ router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
     });
     return res.status(201).json(category);
   } catch (error) {
+    console.error('POST /api/shows/:id/categories failed', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
