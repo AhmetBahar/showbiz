@@ -72,10 +72,6 @@ body {
   background-color: #ff4d4f;
 }
 
-.seat.cancelled {
-  background-color: #d9d9d9;
-  color: #999;
-}
 
 .seat.inactive {
   background-color: #f0f0f0;

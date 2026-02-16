@@ -411,6 +411,7 @@ export default function TicketSalesPage() {
             number: ticket.seat.number,
             status: ticket.status,
             categoryColor: ticket.category.color || undefined,
+            categoryTextColor: ticket.category.textColor || undefined,
           })),
         }));
 

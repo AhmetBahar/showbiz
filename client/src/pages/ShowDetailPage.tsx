@@ -84,7 +84,7 @@ export default function ShowDetailPage() {
     }
   };
 
-  const handleCreateCategory = async (values: { name: string; price: number; color?: string; description?: string }) => {
+  const handleCreateCategory = async (values: { name: string; price: number; color?: string; textColor?: string; description?: string }) => {
     if (!show) return;
     setCategorySaving(true);
     try {
@@ -212,7 +212,7 @@ export default function ShowDetailPage() {
           form={categoryForm}
           layout="vertical"
           onFinish={handleCreateCategory}
-          initialValues={{ color: '#1890ff', price: 0 }}
+          initialValues={{ color: '#1890ff', textColor: '#000000', price: 0 }}
         >
           <Form.Item name="name" label="Kategori Adı" rules={[{ required: true, message: 'Kategori adı giriniz' }]}>
             <Input />
@@ -220,7 +220,10 @@ export default function ShowDetailPage() {
           <Form.Item name="price" label="Fiyat (TL)" rules={[{ required: true, message: 'Fiyat giriniz' }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="color" label="Renk">
+          <Form.Item name="color" label="Arkaplan Rengi">
+            <Input type="color" style={{ width: 64, padding: 4 }} />
+          </Form.Item>
+          <Form.Item name="textColor" label="Metin Rengi">
             <Input type="color" style={{ width: 64, padding: 4 }} />
           </Form.Item>
           <Form.Item name="description" label="Açıklama">

@@ -200,6 +200,7 @@ router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
     const parsedPrice = Number(req.body.price);
     const color = typeof req.body.color === 'string' ? req.body.color.trim() : undefined;
+    const textColor = typeof req.body.textColor === 'string' ? req.body.textColor.trim() : undefined;
     const description = typeof req.body.description === 'string' ? req.body.description.trim() : undefined;
 
     if (!name) {
@@ -211,6 +212,9 @@ router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
     if (color && !isValidHexColor(color)) {
       return res.status(400).json({ error: 'Geçersiz renk formatı' });
     }
+    if (textColor && !isValidHexColor(textColor)) {
+      return res.status(400).json({ error: 'Geçersiz metin rengi formatı' });
+    }
 
     const category = await prisma.ticketCategory.create({
       data: {
@@ -218,6 +222,7 @@ router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
         name,
         price: parsedPrice,
         color: color || null,
+        textColor: textColor || null,
         description: description || null,
       },
     });
@@ -229,10 +234,10 @@ router.post('/:id/categories', authenticate, requireAdmin, async (req, res) => {
 
 router.put('/:id/categories/:catId', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { name, price, color, description } = req.body;
+    const { name, price, color, textColor, description } = req.body;
     const category = await prisma.ticketCategory.update({
       where: { id: parseInt(req.params.catId) },
-      data: { name, price, color, description },
+      data: { name, price, color, textColor, description },
     });
     return res.json(category);
   } catch (error) {

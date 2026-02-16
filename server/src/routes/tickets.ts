@@ -204,7 +204,7 @@ router.put('/:id/release', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Bilet iptal
+// Bilet iptal (müsait durumuna döndür)
 router.put('/:id/cancel', authenticate, async (req: AuthRequest, res) => {
   try {
     const ticket = await prisma.ticket.findUnique({
@@ -221,7 +221,16 @@ router.put('/:id/cancel', authenticate, async (req: AuthRequest, res) => {
     const updated = await prisma.ticket.update({
       where: { id: ticket.id },
       data: {
-        status: 'cancelled',
+        status: 'available',
+        holderName: null,
+        holderPhone: null,
+        holderEmail: null,
+        barcode: null,
+        reservedById: null,
+        soldById: null,
+        reservedAt: null,
+        soldAt: null,
+        checkedInAt: null,
       },
       include: { seat: true, category: true },
     });

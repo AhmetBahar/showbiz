@@ -59,6 +59,7 @@ export interface TicketCategory {
   name: string;
   price: number;
   color?: string;
+  textColor?: string;
   description?: string;
 }
 

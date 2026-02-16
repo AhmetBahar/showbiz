@@ -83,6 +83,7 @@ model TicketCategory {
   name        String
   price       Float
   color       String?
+  textColor   String?
   description String?
 
   show    Show     @relation(fields: [showId], references: [id], onDelete: Cascade)

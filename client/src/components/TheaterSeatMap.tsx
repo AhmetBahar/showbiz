@@ -7,6 +7,7 @@ interface SeatData {
   number: number;
   status?: string;
   categoryColor?: string;
+  categoryTextColor?: string;
 }
 
 interface SectionData {
@@ -74,7 +75,7 @@ function DefaultSeat({
     <div
       className={`seat ${status} ${isSelected ? 'selected' : ''}`}
       onClick={onClick}
-      style={seat.categoryColor && status === 'available' ? { backgroundColor: seat.categoryColor } : undefined}
+      style={status === 'available' ? { backgroundColor: seat.categoryColor, color: seat.categoryTextColor } : undefined}
     >
       {seat.number}
     </div>
