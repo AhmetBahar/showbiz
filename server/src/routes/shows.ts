@@ -124,6 +124,12 @@ router.get('/:id', authenticate, async (req, res) => {
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { venueId, name, description, date } = req.body;
+
+    const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+    if (!venue) {
+      return res.status(400).json({ error: 'Seçilen salon bulunamadı' });
+    }
+
     const show = await prisma.show.create({
       data: { venueId, name, description, date: new Date(date) },
       include: { venue: { select: { id: true, name: true } }, categories: true },
