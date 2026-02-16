@@ -279,20 +279,7 @@ router.post('/:id/initialize-tickets', authenticate, requireAdmin, async (req, r
 
     const show = await prisma.show.findUnique({
       where: { id: showId },
-      include: {
-        venue: {
-          include: {
-            floors: {
-              include: {
-                sections: {
-                  include: { seats: { where: { isActive: true } } },
-                },
-              },
-            },
-          },
-        },
-        categories: true,
-      },
+      include: { categories: true },
     });
 
     if (!show) {
@@ -304,6 +291,23 @@ router.post('/:id/initialize-tickets', authenticate, requireAdmin, async (req, r
       return res.status(400).json({ error: 'Önce en az bir bilet kategorisi oluşturun' });
     }
 
+    const venue = await prisma.venue.findUnique({
+      where: { id: show.venueId },
+      include: {
+        floors: {
+          include: {
+            sections: {
+              include: { seats: { where: { isActive: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!venue) {
+      return res.status(404).json({ error: 'Salon bulunamadı' });
+    }
+
     // Mevcut biletleri kontrol et
     const existingTickets = await prisma.ticket.findMany({
       where: { showId },
@@ -311,7 +315,7 @@ router.post('/:id/initialize-tickets', authenticate, requireAdmin, async (req, r
     });
     const existingSeatIds = new Set(existingTickets.map((t) => t.seatId));
 
-    const allSeats = show.venue.floors.flatMap((f) =>
+    const allSeats = venue.floors.flatMap((f) =>
       f.sections.flatMap((s) => s.seats)
     );
 
