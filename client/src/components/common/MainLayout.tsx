@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layout, Menu, Button, Dropdown, Avatar, Typography } from 'antd';
+import { Layout, Menu, Button, Dropdown, Avatar, Typography, Modal, Input, Form, message } from 'antd';
 import {
   HomeOutlined,
   BankOutlined,
@@ -7,17 +7,22 @@ import {
   BarChartOutlined,
   UserOutlined,
   LogoutOutlined,
+  LockOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { authApi } from '../../services/api';
 
 const { Header, Sider, Content } = Layout;
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordForm] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
@@ -36,10 +41,28 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     navigate('/login');
   };
 
+  const handleChangePassword = async (values: { currentPassword: string; newPassword: string }) => {
+    setPasswordLoading(true);
+    try {
+      await authApi.changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      message.success('Şifre başarıyla değiştirildi');
+      setPasswordModalOpen(false);
+      passwordForm.resetFields();
+    } catch (err: any) {
+      message.error(err.response?.data?.error || 'Şifre değiştirilemedi');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const userMenu = {
     items: [
       { key: 'role', label: `Rol: ${user?.role === 'admin' ? 'Yönetici' : user?.role === 'agent' ? 'Gişe Görevlisi' : 'Kapı Görevlisi'}`, disabled: true },
       { type: 'divider' as const },
+      { key: 'change-password', icon: <LockOutlined />, label: 'Şifre Değiştir', onClick: () => setPasswordModalOpen(true) },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Çıkış Yap', onClick: handleLogout },
     ],
   };
@@ -98,6 +121,54 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {children}
         </Content>
       </Layout>
+
+      <Modal
+        title="Şifre Değiştir"
+        open={passwordModalOpen}
+        onCancel={() => { setPasswordModalOpen(false); passwordForm.resetFields(); }}
+        onOk={() => passwordForm.submit()}
+        confirmLoading={passwordLoading}
+        okText="Değiştir"
+        cancelText="İptal"
+      >
+        <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword}>
+          <Form.Item
+            name="currentPassword"
+            label="Mevcut Şifre"
+            rules={[{ required: true, message: 'Mevcut şifrenizi girin' }]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="newPassword"
+            label="Yeni Şifre"
+            rules={[
+              { required: true, message: 'Yeni şifrenizi girin' },
+              { min: 6, message: 'Şifre en az 6 karakter olmalıdır' },
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="Yeni Şifre Tekrar"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Yeni şifrenizi tekrar girin' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Şifreler eşleşmiyor'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 }

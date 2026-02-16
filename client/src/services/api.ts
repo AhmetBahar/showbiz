@@ -33,6 +33,8 @@ export const authApi = {
   me: () => api.get('/auth/me'),
   getUsers: () => api.get('/auth/users'),
   deleteUser: (id: number) => api.delete(`/auth/users/${id}`),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.put('/auth/change-password', data),
 };
 
 // Venue
