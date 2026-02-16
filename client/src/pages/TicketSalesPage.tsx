@@ -19,6 +19,7 @@ import {
   Col,
   Popconfirm,
   Checkbox,
+  Select,
 } from 'antd';
 import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { showApi, ticketApi } from '../services/api';
@@ -35,6 +36,8 @@ export default function TicketSalesPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [actionType, setActionType] = useState<'reserve' | 'sell'>('reserve');
   const [processing, setProcessing] = useState(false);
+  const [categoryChanging, setCategoryChanging] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
   const [form] = Form.useForm();
 
   const fetchData = async () => {
@@ -251,6 +254,26 @@ export default function TicketSalesPage() {
     }
   };
 
+  const handleBulkCategoryChange = async () => {
+    if (!selectedCategoryId || selectedTickets.length === 0) return;
+
+    setCategoryChanging(true);
+    try {
+      await ticketApi.bulkChangeCategory({
+        ticketIds: selectedTickets.map((t) => t.id),
+        categoryId: selectedCategoryId,
+      });
+      message.success(`${selectedTickets.length} koltuğun kategorisi güncellendi`);
+      setSelectedTickets([]);
+      setSelectedCategoryId(undefined);
+      await fetchData();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Kategori atama başarısız');
+    } finally {
+      setCategoryChanging(false);
+    }
+  };
+
   const escapeHtml = (value: unknown) =>
     String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -303,6 +326,7 @@ export default function TicketSalesPage() {
   const canReserve = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available');
   const canSell = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available' || t.status === 'reserved');
   const canTicketPdf = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'sold');
+  const canChangeCategory = selectedTickets.length > 0 && !!selectedCategoryId;
 
   const selectedSeatIds = new Set(selectedTickets.map((t) => t.seatId));
 
@@ -328,6 +352,20 @@ export default function TicketSalesPage() {
           <Col flex="auto" style={{ textAlign: 'right' }}>
             <Space>
               <Tag>{selectedTickets.length} koltuk seçili</Tag>
+              <Select
+                placeholder="Kategori seç"
+                style={{ width: 180 }}
+                allowClear
+                value={selectedCategoryId}
+                onChange={(value) => setSelectedCategoryId(value)}
+                options={show.categories.map((cat) => ({
+                  value: cat.id,
+                  label: `${cat.name} - ${cat.price} TL`,
+                }))}
+              />
+              <Button loading={categoryChanging} disabled={!canChangeCategory} onClick={handleBulkCategoryChange}>
+                Kategori Ata
+              </Button>
               <Button type="primary" disabled={!canReserve} onClick={() => openAction('reserve')}>
                 Rezerve Et
               </Button>

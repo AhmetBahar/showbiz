@@ -76,6 +76,8 @@ export const ticketApi = {
   reset: (id: number) => api.put(`/tickets/${id}/reset`),
   bulkReserve: (data: any) => api.put('/tickets/bulk-reserve', data),
   bulkSell: (data: any) => api.put('/tickets/bulk-sell', data),
+  bulkChangeCategory: (data: { ticketIds: number[]; categoryId: number }) =>
+    api.put('/tickets/bulk-category', data),
   checkin: (barcode: string) => api.post('/tickets/checkin', { barcode }),
   changeCategory: (id: number, categoryId: number) =>
     api.put(`/tickets/${id}/category`, { categoryId }),

@@ -387,4 +387,56 @@ router.put('/:id/category', authenticate, async (req, res) => {
   }
 });
 
+// Toplu bilet kategorisi değiştir
+router.put('/bulk-category', authenticate, async (req, res) => {
+  try {
+    const { ticketIds, categoryId } = req.body;
+
+    if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+      return res.status(400).json({ error: 'En az bir bilet seçmelisiniz' });
+    }
+
+    const parsedCategoryId = Number.parseInt(String(categoryId), 10);
+    if (!Number.isInteger(parsedCategoryId)) {
+      return res.status(400).json({ error: 'Geçersiz kategori' });
+    }
+
+    const category = await prisma.ticketCategory.findUnique({
+      where: { id: parsedCategoryId },
+      select: { id: true, showId: true },
+    });
+    if (!category) {
+      return res.status(404).json({ error: 'Kategori bulunamadı' });
+    }
+
+    const parsedTicketIds = ticketIds
+      .map((id: unknown) => Number.parseInt(String(id), 10))
+      .filter((id: number) => Number.isInteger(id));
+
+    if (parsedTicketIds.length !== ticketIds.length) {
+      return res.status(400).json({ error: 'Geçersiz bilet listesi' });
+    }
+
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        id: { in: parsedTicketIds },
+        showId: category.showId,
+      },
+      select: { id: true },
+    });
+    if (tickets.length !== parsedTicketIds.length) {
+      return res.status(400).json({ error: 'Bazı biletler seçili kategoriyle aynı gösteriye ait değil' });
+    }
+
+    await prisma.ticket.updateMany({
+      where: { id: { in: parsedTicketIds } },
+      data: { categoryId: category.id },
+    });
+
+    return res.json({ message: `${parsedTicketIds.length} biletin kategorisi güncellendi` });
+  } catch (error) {
+    return res.status(500).json({ error: 'Sunucu hatası' });
+  }
+});
+
 export default router;

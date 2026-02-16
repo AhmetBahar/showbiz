@@ -31,7 +31,17 @@ const sectionTypeLabels: Record<string, string> = {
   right_wing: 'Sağ Kanat',
 };
 
+const stageFrontRows = ['AA', 'BB', 'CC', 'DD'];
+
 const sortRows = (a: string, b: string) => {
+  const aFrontIndex = stageFrontRows.indexOf(a.toUpperCase());
+  const bFrontIndex = stageFrontRows.indexOf(b.toUpperCase());
+  if (aFrontIndex !== -1 || bFrontIndex !== -1) {
+    if (aFrontIndex === -1) return 1;
+    if (bFrontIndex === -1) return -1;
+    return aFrontIndex - bFrontIndex;
+  }
+
   if (a.length !== b.length) return a.length - b.length;
   return a.localeCompare(b);
 };
