@@ -141,12 +141,12 @@ export default function ReportsPage() {
                   </Col>
                   <Col xs={12} sm={6}>
                     <Card>
-                      <Statistic title="Rezerve" value={summary.summary.reserved} valueStyle={{ color: '#faad14' }} />
+                      <Statistic title="Rezerve" value={summary.summary.reserved} valueStyle={{ color: '#999' }} />
                     </Card>
                   </Col>
                   <Col xs={12} sm={6}>
                     <Card>
-                      <Statistic title="Satılmış" value={summary.summary.sold} valueStyle={{ color: '#ff4d4f' }} />
+                      <Statistic title="Satılmış" value={summary.summary.sold} valueStyle={{ color: '#000' }} />
                     </Card>
                   </Col>
                 </Row>
@@ -247,7 +247,7 @@ export default function ReportsPage() {
                   </Col>
                   <Col span={6}>
                     <Card>
-                      <Statistic title="Gelmeyen" value={attendance.notCheckedInCount} valueStyle={{ color: '#faad14' }} />
+                      <Statistic title="Gelmeyen" value={attendance.notCheckedInCount} valueStyle={{ color: '#999' }} />
                     </Card>
                   </Col>
                   <Col span={6}>

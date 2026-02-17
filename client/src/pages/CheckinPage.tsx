@@ -130,7 +130,7 @@ export default function CheckinPage() {
               <Statistic
                 title="Gelmemiş"
                 value={stats.notCheckedInCount}
-                valueStyle={{ color: '#faad14' }}
+                valueStyle={{ color: '#999' }}
               />
             </Card>
           </Col>
@@ -140,7 +140,7 @@ export default function CheckinPage() {
                 title="Katılım Oranı"
                 value={stats.attendanceRate?.toFixed(1)}
                 suffix="%"
-                valueStyle={{ color: stats.attendanceRate > 80 ? '#52c41a' : '#faad14' }}
+                valueStyle={{ color: stats.attendanceRate > 80 ? '#52c41a' : '#999' }}
               />
             </Card>
           </Col>

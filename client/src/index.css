@@ -65,11 +65,13 @@ body {
 }
 
 .seat.reserved {
-  background-color: #faad14;
+  background-color: #999;
+  color: #000;
 }
 
 .seat.sold {
-  background-color: #ff4d4f;
+  background-color: #000;
+  color: #fff;
 }
 
 

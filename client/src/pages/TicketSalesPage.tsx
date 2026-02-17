@@ -344,8 +344,8 @@ export default function TicketSalesPage() {
           <Col>
             <Space size="large">
               <Badge color="#52c41a" text={`Boş: ${stats.available}`} />
-              <Badge color="#faad14" text={`Rezerve: ${stats.reserved}`} />
-              <Badge color="#ff4d4f" text={`Satılmış: ${stats.sold}`} />
+              <Badge color="#999" text={`Rezerve: ${stats.reserved}`} />
+              <Badge color="#000" text={`Satılmış: ${stats.sold}`} />
               <Badge color="#d9d9d9" text={`İptal: ${stats.cancelled}`} />
             </Space>
           </Col>
@@ -360,7 +360,12 @@ export default function TicketSalesPage() {
                 onChange={(value) => setSelectedCategoryId(value)}
                 options={show.categories.map((cat) => ({
                   value: cat.id,
-                  label: `${cat.name} - ${cat.price} TL`,
+                  label: (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: cat.color || '#ccc', display: 'inline-block', border: '1px solid #d9d9d9' }} />
+                      {cat.name} - {cat.price} TL
+                    </span>
+                  ),
                 }))}
               />
               <Button loading={categoryChanging} disabled={!canChangeCategory} onClick={handleBulkCategoryChange}>
