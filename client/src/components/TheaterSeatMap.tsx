@@ -162,28 +162,34 @@ export default function TheaterSeatMap({
           const centerSeats = centerRows.get(rowLabel) || [];
           const rightSeats = rightRows.get(rowLabel) || [];
 
-          // Sort: left wing descending, right wing ascending
-          const leftSorted = [...leftSeats].sort((a, b) => b.number - a.number);
-          const rightSorted = [...rightSeats].sort((a, b) => a.number - b.number);
+          // Even/odd split: evens descending (left), odds ascending (right)
+          const splitEvenOdd = (seats: SeatData[]) => ({
+            evens: seats.filter((s) => s.number % 2 === 0).sort((a, b) => b.number - a.number),
+            odds: seats.filter((s) => s.number % 2 === 1).sort((a, b) => a.number - b.number),
+          });
 
-          // Center: evens descending on left side, odds ascending on right side
-          const centerEvens = centerSeats.filter((s) => s.number % 2 === 0).sort((a, b) => b.number - a.number);
-          const centerOdds = centerSeats.filter((s) => s.number % 2 === 1).sort((a, b) => a.number - b.number);
+          const left = splitEvenOdd(leftSeats);
+          const mid = splitEvenOdd(centerSeats);
+          const right = splitEvenOdd(rightSeats);
 
           return (
             <div key={rowLabel} className="theater-row">
               <div className="wing-seats">
-                {leftSorted.map((seat) => renderSeatEl(seat))}
+                {left.evens.map((seat) => renderSeatEl(seat))}
+                {leftSeats.length > 0 && <div className="center-aisle" />}
+                {left.odds.map((seat) => renderSeatEl(seat))}
               </div>
               <span className="seat-row-label">{rowLabel}</span>
               <div className="center-seats">
-                {centerEvens.map((seat) => renderSeatEl(seat))}
+                {mid.evens.map((seat) => renderSeatEl(seat))}
                 <div className="center-aisle" />
-                {centerOdds.map((seat) => renderSeatEl(seat))}
+                {mid.odds.map((seat) => renderSeatEl(seat))}
               </div>
               <span className="seat-row-label">{rowLabel}</span>
               <div className="wing-seats">
-                {rightSorted.map((seat) => renderSeatEl(seat))}
+                {right.evens.map((seat) => renderSeatEl(seat))}
+                {rightSeats.length > 0 && <div className="center-aisle" />}
+                {right.odds.map((seat) => renderSeatEl(seat))}
               </div>
             </div>
           );
