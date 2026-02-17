@@ -381,7 +381,12 @@ export default function TicketSalesPage() {
           </Col>
           <Col flex="auto" style={{ textAlign: 'right' }}>
             <Space>
-              <Tag>{selectedTickets.length} koltuk seçili</Tag>
+              <Tag
+                style={selectedTickets.length > 0 ? { cursor: 'pointer' } : undefined}
+                onClick={() => selectedTickets.length > 0 && setSelectedTickets([])}
+              >
+                {selectedTickets.length} koltuk seçili {selectedTickets.length > 0 && '✕'}
+              </Tag>
               <Select
                 placeholder="Kategori seç"
                 style={{ width: 180 }}
