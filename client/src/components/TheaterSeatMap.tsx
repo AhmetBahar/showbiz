@@ -111,10 +111,10 @@ export default function TheaterSeatMap({
     );
   }
 
-  // Theater mode
-  const leftWing = sections.find((s) => s.type === 'left_wing');
+  // Theater mode — DB uses stage perspective, UI shows audience perspective (swapped)
+  const leftWing = sections.find((s) => s.type === 'right_wing');
   const center = sections.find((s) => s.type === 'center');
-  const rightWing = sections.find((s) => s.type === 'right_wing');
+  const rightWing = sections.find((s) => s.type === 'left_wing');
   const otherSections = sections.filter(
     (s) => s.type !== 'left_wing' && s.type !== 'center' && s.type !== 'right_wing'
   );
