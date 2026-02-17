@@ -48,47 +48,47 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const downloadCSV = (csvContent: string, filename: string) => {
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const downloadExcel = (tsvContent: string, filename: string) => {
+    const blob = new Blob(['\ufeff' + tsvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}.csv`;
+    a.download = `${filename}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const escapeCSV = (val: unknown) => `"${(val ?? '').toString().replace(/"/g, '""')}"`;
+  const cell = (val: unknown) => (val ?? '').toString().replace(/\t/g, ' ');
 
-  const exportAudienceCSV = (data: AudienceMember[], filename: string) => {
+  const exportAudienceExcel = (data: AudienceMember[], filename: string) => {
     if (data.length === 0) return;
     const headers = ['İsim', 'Telefon', 'E-posta', 'Kat', 'Bölüm', 'Koltuk', 'Kategori', 'Fiyat', 'Durum', 'Giriş'];
     const rows = data.map((r) => [
-      escapeCSV(r.holderName),
-      escapeCSV(r.holderPhone),
-      escapeCSV(r.holderEmail),
-      escapeCSV(r.floor),
-      escapeCSV(r.section),
-      escapeCSV(`${r.row}-${r.seatNumber}`),
-      escapeCSV(r.category),
-      escapeCSV(`${r.price} TL`),
-      escapeCSV(r.status === 'sold' ? 'Satılmış' : r.status === 'reserved' ? 'Rezerve' : r.status),
-      escapeCSV(r.checkedIn ? 'Evet' : 'Hayır'),
-    ].join(','));
-    downloadCSV([headers.join(','), ...rows].join('\n'), filename);
+      cell(r.holderName),
+      cell(r.holderPhone),
+      cell(r.holderEmail),
+      cell(r.floor),
+      cell(r.section),
+      cell(`${r.row}-${r.seatNumber}`),
+      cell(r.category),
+      `${r.price} TL`,
+      r.status === 'sold' ? 'Satılmış' : r.status === 'reserved' ? 'Rezerve' : r.status,
+      r.checkedIn ? 'Evet' : 'Hayır',
+    ].join('\t'));
+    downloadExcel([headers.join('\t'), ...rows].join('\n'), filename);
   };
 
-  const exportAttendanceCSV = (data: any[], filename: string) => {
+  const exportAttendanceExcel = (data: any[], filename: string) => {
     if (data.length === 0) return;
     const headers = ['İsim', 'Telefon', 'Bölüm', 'Koltuk', 'Saat'];
     const rows = data.map((r: any) => [
-      escapeCSV(r.holderName),
-      escapeCSV(r.holderPhone),
-      escapeCSV(`${r.section}`),
-      escapeCSV(`${r.row}-${r.seatNumber}`),
-      escapeCSV(r.checkedInAt ? new Date(r.checkedInAt).toLocaleTimeString('tr-TR') : '-'),
-    ].join(','));
-    downloadCSV([headers.join(','), ...rows].join('\n'), filename);
+      cell(r.holderName),
+      cell(r.holderPhone),
+      cell(r.section),
+      cell(`${r.row}-${r.seatNumber}`),
+      r.checkedInAt ? new Date(r.checkedInAt).toLocaleTimeString('tr-TR') : '-',
+    ].join('\t'));
+    downloadExcel([headers.join('\t'), ...rows].join('\n'), filename);
   };
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
@@ -238,9 +238,9 @@ export default function ReportsPage() {
                 <div style={{ marginBottom: 16, textAlign: 'right' }}>
                   <Button
                     icon={<DownloadOutlined />}
-                    onClick={() => exportAudienceCSV(audience, `seyirci-listesi-${id}`)}
+                    onClick={() => exportAudienceExcel(audience, `seyirci-listesi-${id}`)}
                   >
-                    CSV İndir
+                    Excel İndir
                   </Button>
                 </div>
                 <Table
@@ -293,7 +293,7 @@ export default function ReportsPage() {
                         <Button
                           size="small"
                           icon={<DownloadOutlined />}
-                          onClick={() => exportAttendanceCSV(attendance.checkedIn, `giris-yapanlar-${id}`)}
+                          onClick={() => exportAttendanceExcel(attendance.checkedIn, `giris-yapanlar-${id}`)}
                         >
                           CSV
                         </Button>
@@ -319,7 +319,7 @@ export default function ReportsPage() {
                         <Button
                           size="small"
                           icon={<DownloadOutlined />}
-                          onClick={() => exportAttendanceCSV(attendance.notCheckedIn, `gelmeyenler-${id}`)}
+                          onClick={() => exportAttendanceExcel(attendance.notCheckedIn, `gelmeyenler-${id}`)}
                         >
                           CSV
                         </Button>
