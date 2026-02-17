@@ -48,8 +48,14 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const downloadExcel = (tsvContent: string, filename: string) => {
-    const blob = new Blob(['\ufeff' + tsvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const downloadExcel = (headers: string[], rows: string[][], filename: string) => {
+    const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"/></head><body>
+<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+</body></html>`;
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -58,37 +64,35 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const cell = (val: unknown) => (val ?? '').toString().replace(/\t/g, ' ');
-
   const exportAudienceExcel = (data: AudienceMember[], filename: string) => {
     if (data.length === 0) return;
     const headers = ['İsim', 'Telefon', 'E-posta', 'Kat', 'Bölüm', 'Koltuk', 'Kategori', 'Fiyat', 'Durum', 'Giriş'];
     const rows = data.map((r) => [
-      cell(r.holderName),
-      cell(r.holderPhone),
-      cell(r.holderEmail),
-      cell(r.floor),
-      cell(r.section),
-      cell(`${r.row}-${r.seatNumber}`),
-      cell(r.category),
+      r.holderName || '',
+      r.holderPhone || '',
+      r.holderEmail || '',
+      r.floor,
+      r.section,
+      `${r.row}-${r.seatNumber}`,
+      r.category,
       `${r.price} TL`,
       r.status === 'sold' ? 'Satılmış' : r.status === 'reserved' ? 'Rezerve' : r.status,
       r.checkedIn ? 'Evet' : 'Hayır',
-    ].join('\t'));
-    downloadExcel([headers.join('\t'), ...rows].join('\n'), filename);
+    ]);
+    downloadExcel(headers, rows, filename);
   };
 
   const exportAttendanceExcel = (data: any[], filename: string) => {
     if (data.length === 0) return;
     const headers = ['İsim', 'Telefon', 'Bölüm', 'Koltuk', 'Saat'];
     const rows = data.map((r: any) => [
-      cell(r.holderName),
-      cell(r.holderPhone),
-      cell(r.section),
-      cell(`${r.row}-${r.seatNumber}`),
+      r.holderName || '',
+      r.holderPhone || '',
+      r.section,
+      `${r.row}-${r.seatNumber}`,
       r.checkedInAt ? new Date(r.checkedInAt).toLocaleTimeString('tr-TR') : '-',
-    ].join('\t'));
-    downloadExcel([headers.join('\t'), ...rows].join('\n'), filename);
+    ]);
+    downloadExcel(headers, rows, filename);
   };
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
