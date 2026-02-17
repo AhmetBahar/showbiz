@@ -166,9 +166,9 @@ export default function TheaterSeatMap({
           const leftSorted = [...leftSeats].sort((a, b) => b.number - a.number);
           const rightSorted = [...rightSeats].sort((a, b) => a.number - b.number);
 
-          // Center: odds descending on left side, evens ascending on right side
-          const centerOdds = centerSeats.filter((s) => s.number % 2 === 1).sort((a, b) => b.number - a.number);
-          const centerEvens = centerSeats.filter((s) => s.number % 2 === 0).sort((a, b) => a.number - b.number);
+          // Center: evens descending on left side, odds ascending on right side
+          const centerEvens = centerSeats.filter((s) => s.number % 2 === 0).sort((a, b) => b.number - a.number);
+          const centerOdds = centerSeats.filter((s) => s.number % 2 === 1).sort((a, b) => a.number - b.number);
 
           return (
             <div key={rowLabel} className="theater-row">
@@ -177,9 +177,9 @@ export default function TheaterSeatMap({
               </div>
               <span className="seat-row-label">{rowLabel}</span>
               <div className="center-seats">
-                {centerOdds.map((seat) => renderSeatEl(seat))}
-                <div className="center-aisle" />
                 {centerEvens.map((seat) => renderSeatEl(seat))}
+                <div className="center-aisle" />
+                {centerOdds.map((seat) => renderSeatEl(seat))}
               </div>
               <span className="seat-row-label">{rowLabel}</span>
               <div className="wing-seats">

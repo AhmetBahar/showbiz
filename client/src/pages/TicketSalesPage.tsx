@@ -21,7 +21,7 @@ import {
   Checkbox,
   Select,
 } from 'antd';
-import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined, FilePdfOutlined, SearchOutlined } from '@ant-design/icons';
 import { showApi, ticketApi } from '../services/api';
 import { Show, Ticket } from '../types';
 import TheaterSeatMap from '../components/TheaterSeatMap';
@@ -328,6 +328,27 @@ export default function TicketSalesPage() {
   const canTicketPdf = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'sold');
   const canChangeCategory = selectedTickets.length > 0 && !!selectedCategoryId;
 
+  const handleSearch = (value: string) => {
+    const query = value.trim();
+    if (!query) {
+      setSelectedTickets([]);
+      return;
+    }
+    const lower = query.toLowerCase();
+    const queryNum = parseInt(query, 10);
+    const matched = tickets.filter((t) => {
+      if (t.holderName && t.holderName.toLowerCase().includes(lower)) return true;
+      if (t.barcode && t.barcode.includes(query)) return true;
+      if (!isNaN(queryNum) && t.id === queryNum) return true;
+      return false;
+    });
+    if (matched.length === 0) {
+      message.warning('Sonuç bulunamadı');
+    } else {
+      setSelectedTickets(matched);
+    }
+  };
+
   const selectedSeatIds = new Set(selectedTickets.map((t) => t.seatId));
 
   return (
@@ -348,6 +369,15 @@ export default function TicketSalesPage() {
               <Badge color="#000" text={`Satılmış: ${stats.sold}`} />
               <Badge color="#d9d9d9" text={`İptal: ${stats.cancelled}`} />
             </Space>
+          </Col>
+          <Col>
+            <Input.Search
+              placeholder="Ad, barkod veya bilet no ile ara..."
+              allowClear
+              onSearch={handleSearch}
+              style={{ width: 300 }}
+              prefix={<SearchOutlined />}
+            />
           </Col>
           <Col flex="auto" style={{ textAlign: 'right' }}>
             <Space>

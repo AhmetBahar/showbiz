@@ -48,23 +48,47 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const exportCSV = (data: any[], filename: string) => {
-    if (data.length === 0) return;
-    const headers = Object.keys(data[0]);
-    const csv = [
-      headers.join(','),
-      ...data.map((row) =>
-        headers.map((h) => `"${(row[h] ?? '').toString().replace(/"/g, '""')}"`).join(',')
-      ),
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const downloadCSV = (csvContent: string, filename: string) => {
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${filename}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const escapeCSV = (val: unknown) => `"${(val ?? '').toString().replace(/"/g, '""')}"`;
+
+  const exportAudienceCSV = (data: AudienceMember[], filename: string) => {
+    if (data.length === 0) return;
+    const headers = ['İsim', 'Telefon', 'E-posta', 'Kat', 'Bölüm', 'Koltuk', 'Kategori', 'Fiyat', 'Durum', 'Giriş'];
+    const rows = data.map((r) => [
+      escapeCSV(r.holderName),
+      escapeCSV(r.holderPhone),
+      escapeCSV(r.holderEmail),
+      escapeCSV(r.floor),
+      escapeCSV(r.section),
+      escapeCSV(`${r.row}-${r.seatNumber}`),
+      escapeCSV(r.category),
+      escapeCSV(`${r.price} TL`),
+      escapeCSV(r.status === 'sold' ? 'Satılmış' : r.status === 'reserved' ? 'Rezerve' : r.status),
+      escapeCSV(r.checkedIn ? 'Evet' : 'Hayır'),
+    ].join(','));
+    downloadCSV([headers.join(','), ...rows].join('\n'), filename);
+  };
+
+  const exportAttendanceCSV = (data: any[], filename: string) => {
+    if (data.length === 0) return;
+    const headers = ['İsim', 'Telefon', 'Bölüm', 'Koltuk', 'Saat'];
+    const rows = data.map((r: any) => [
+      escapeCSV(r.holderName),
+      escapeCSV(r.holderPhone),
+      escapeCSV(`${r.section}`),
+      escapeCSV(`${r.row}-${r.seatNumber}`),
+      escapeCSV(r.checkedInAt ? new Date(r.checkedInAt).toLocaleTimeString('tr-TR') : '-'),
+    ].join(','));
+    downloadCSV([headers.join(','), ...rows].join('\n'), filename);
   };
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
@@ -214,7 +238,7 @@ export default function ReportsPage() {
                 <div style={{ marginBottom: 16, textAlign: 'right' }}>
                   <Button
                     icon={<DownloadOutlined />}
-                    onClick={() => exportCSV(audience, `seyirci-listesi-${id}`)}
+                    onClick={() => exportAudienceCSV(audience, `seyirci-listesi-${id}`)}
                   >
                     CSV İndir
                   </Button>
@@ -269,7 +293,7 @@ export default function ReportsPage() {
                         <Button
                           size="small"
                           icon={<DownloadOutlined />}
-                          onClick={() => exportCSV(attendance.checkedIn, `giris-yapanlar-${id}`)}
+                          onClick={() => exportAttendanceCSV(attendance.checkedIn, `giris-yapanlar-${id}`)}
                         >
                           CSV
                         </Button>
@@ -295,7 +319,7 @@ export default function ReportsPage() {
                         <Button
                           size="small"
                           icon={<DownloadOutlined />}
-                          onClick={() => exportCSV(attendance.notCheckedIn, `gelmeyenler-${id}`)}
+                          onClick={() => exportAttendanceCSV(attendance.notCheckedIn, `gelmeyenler-${id}`)}
                         >
                           CSV
                         </Button>
