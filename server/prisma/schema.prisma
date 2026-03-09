@@ -13,6 +13,7 @@ model User {
   password  String
   name      String
   role      String   @default("agent") // admin, agent, usher
+  canSell   Boolean  @default(false)
   createdAt DateTime @default(now())
 
   reservations Ticket[] @relation("ReservedBy")

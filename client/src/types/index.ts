@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'agent' | 'usher';
+  canSell: boolean;
   createdAt?: string;
 }
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../index';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, requireSeller, AuthRequest } from '../middleware/auth';
 import crypto from 'crypto';
 const bwipjs = require('bwip-js');
 
@@ -137,7 +137,7 @@ router.put('/:id/reserve', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Satış yap
-router.put('/:id/sell', authenticate, async (req: AuthRequest, res) => {
+router.put('/:id/sell', authenticate, requireSeller, async (req: AuthRequest, res) => {
   try {
     const { holderName, holderPhone, holderEmail } = req.body;
     const ticket = await prisma.ticket.findUnique({
@@ -298,7 +298,7 @@ router.put('/bulk-reserve', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Toplu satış
-router.put('/bulk-sell', authenticate, async (req: AuthRequest, res) => {
+router.put('/bulk-sell', authenticate, requireSeller, async (req: AuthRequest, res) => {
   try {
     const { ticketIds, holderName, holderPhone, holderEmail } = req.body;
 

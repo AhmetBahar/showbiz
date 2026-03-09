@@ -25,10 +25,12 @@ import { ArrowLeftOutlined, UserOutlined, PhoneOutlined, MailOutlined, FilePdfOu
 import { showApi, ticketApi } from '../services/api';
 import { Show, Ticket } from '../types';
 import TheaterSeatMap from '../components/TheaterSeatMap';
+import { useAuthStore } from '../store/authStore';
 
 export default function TicketSalesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
   const [show, setShow] = useState<Show | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,7 +326,8 @@ export default function TicketSalesPage() {
   };
 
   const canReserve = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available');
-  const canSell = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available' || t.status === 'reserved');
+  const userCanSell = currentUser?.canSell || currentUser?.role === 'admin';
+  const canSell = userCanSell && selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'available' || t.status === 'reserved');
   const canTicketPdf = selectedTickets.length > 0 && selectedTickets.every((t) => t.status === 'sold');
   const canChangeCategory = selectedTickets.length > 0 && !!selectedCategoryId;
 

@@ -22,14 +22,14 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
+      { id: user.id, email: user.email, role: user.role, name: user.name, canSell: user.canSell },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     return res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, canSell: user.canSell },
     });
   } catch (error) {
     return res.status(500).json({ error: 'Sunucu hatası' });
@@ -38,7 +38,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/register', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { email, password, name, role } = req.body;
+    const { email, password, name, role, canSell } = req.body;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -47,8 +47,8 @@ router.post('/register', authenticate, requireAdmin, async (req: AuthRequest, re
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, role: role || 'agent' },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      data: { email, password: hashedPassword, name, role: role || 'agent', canSell: canSell || false },
+      select: { id: true, email: true, name: true, role: true, canSell: true, createdAt: true },
     });
 
     return res.status(201).json(user);
@@ -91,7 +91,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, canSell: true, createdAt: true },
     });
     return res.json(user);
   } catch (error) {
@@ -102,7 +102,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
 router.get('/users', authenticate, requireAdmin, async (_req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, canSell: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
     return res.json(users);

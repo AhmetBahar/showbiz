@@ -11,6 +11,7 @@ import {
   Form,
   Input,
   Select,
+  Checkbox,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { authApi } from '../services/api';
@@ -75,6 +76,12 @@ export default function UsersPage() {
       ),
     },
     {
+      title: 'Satış Yetkisi',
+      dataIndex: 'canSell',
+      key: 'canSell',
+      render: (canSell: boolean) => canSell ? <Tag color="green">Evet</Tag> : <Tag>Hayır</Tag>,
+    },
+    {
       title: 'İşlemler',
       key: 'actions',
       render: (_: any, record: User) => (
@@ -124,6 +131,9 @@ export default function UsersPage() {
                 { value: 'usher', label: 'Kapı Görevlisi' },
               ]}
             />
+          </Form.Item>
+          <Form.Item name="canSell" valuePropName="checked" initialValue={false}>
+            <Checkbox>Satış yetkisi ver</Checkbox>
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={creating} block>

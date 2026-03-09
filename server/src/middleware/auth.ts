@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'showbiz-secret-key';
 
 export interface AuthRequest extends Request {
-  user?: { id: number; email: string; role: string; name: string };
+  user?: { id: number; email: string; role: string; name: string; canSell: boolean };
 }
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
@@ -27,6 +27,14 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'Yönetici yetkisi gerekli' });
+    return;
+  }
+  next();
+}
+
+export function requireSeller(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (!req.user?.canSell && req.user?.role !== 'admin') {
+    res.status(403).json({ error: 'Satış yetkisi gerekli' });
     return;
   }
   next();
